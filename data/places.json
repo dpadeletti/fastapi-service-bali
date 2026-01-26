@@ -1,0 +1,53 @@
+[
+    {
+      "id": 1,
+      "name": "Tegallalang Rice Terrace",
+      "area": "Ubud",
+      "type": "nature",
+      "duration_hours": 2,
+      "best_time": "morning",
+      "price_level": "low",
+      "tags": ["rice", "view", "walk"]
+    },
+    {
+      "id": 2,
+      "name": "Uluwatu Temple",
+      "area": "Uluwatu",
+      "type": "temple",
+      "duration_hours": 2,
+      "best_time": "sunset",
+      "price_level": "low",
+      "tags": ["temple", "cliff", "sunset"]
+    },
+    {
+      "id": 3,
+      "name": "Seminyak Beach",
+      "area": "Seminyak",
+      "type": "beach",
+      "duration_hours": 3,
+      "best_time": "sunset",
+      "price_level": "medium",
+      "tags": ["beach", "surf", "chill"]
+    },
+    {
+      "id": 4,
+      "name": "Mount Batur Sunrise Hike",
+      "area": "Kintamani",
+      "type": "adventure",
+      "duration_hours": 6,
+      "best_time": "morning",
+      "price_level": "medium",
+      "tags": ["hike", "sunrise", "volcano"]
+    },
+    {
+      "id": 5,
+      "name": "Nusa Penida Day Trip",
+      "area": "Nusa Penida",
+      "type": "island",
+      "duration_hours": 10,
+      "best_time": "morning",
+      "price_level": "high",
+      "tags": ["island", "snorkeling", "daytrip"]
+    }
+  ]
+  
