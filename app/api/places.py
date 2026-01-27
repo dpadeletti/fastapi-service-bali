@@ -1,29 +1,45 @@
-import json
-from functools import lru_cache
-from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import Select, select
+from sqlalchemy.orm import Session
 
-from app.models.place import Place, PlaceType, BestTime
+from app.db.models.place import PlaceDB
+from app.db.session import SessionLocal
+from app.models.place import BestTime, Place, PlaceType
 
 router = APIRouter(tags=["places"])
 
 
-@lru_cache(maxsize=1)
-def load_places() -> list[Place]:
+def get_db() -> Session:
     """
-    Carica i luoghi dal file JSON e li converte in modelli Pydantic.
-    Usiamo lru_cache per non rileggere il file ad ogni richiesta (più efficiente).
+    Dependency FastAPI: apre una sessione DB per-request e la chiude a fine richiesta.
+    Pattern standard in team.
     """
-    project_root = Path(__file__).resolve().parents[2]  # .../fastapi-service-bali
-    data_path = project_root / "data" / "places.json"
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-    if not data_path.exists():
-        raise RuntimeError(f"Missing data file: {data_path}")
 
-    raw = json.loads(data_path.read_text(encoding="utf-8"))
-    return [Place.model_validate(item) for item in raw]
+def to_place_api(row: PlaceDB) -> Place:
+    """
+    Converte il modello DB (SQLAlchemy) nel modello API (Pydantic) usato come response_model.
+    """
+    tags = [t for t in (row.tags or "").split(",") if t]  # "a,b,c" -> ["a","b","c"]
+    return Place.model_validate(
+        {
+            "id": row.id,
+            "name": row.name,
+            "area": row.area,
+            "type": row.type,
+            "duration_hours": row.duration_hours,
+            "best_time": row.best_time,
+            "price_level": row.price_level,
+            "tags": tags,
+        }
+    )
 
 
 @router.get("/places", response_model=list[Place])
@@ -31,31 +47,33 @@ def list_places(
     area: Optional[str] = Query(default=None, description="Filter by area (e.g. Ubud)"),
     type: Optional[PlaceType] = Query(default=None, description="Filter by place type"),
     best_time: Optional[BestTime] = Query(default=None, description="Best time of day"),
-    max_duration_hours: Optional[int] = Query(default=None, ge=1, le=24, description="Max duration in hours"),
+    max_duration_hours: Optional[int] = Query(
+        default=None, ge=1, le=24, description="Max duration in hours"
+    ),
+    db: Session = Depends(get_db),
 ) -> list[Place]:
-    places = load_places()
-    results = places
+    stmt: Select = select(PlaceDB)
 
     if area:
-        area_lower = area.strip().lower()
-        results = [p for p in results if p.area.lower() == area_lower]
+        # Case-insensitive match “pulito”
+        stmt = stmt.where(PlaceDB.area.ilike(area.strip()))
 
     if type:
-        results = [p for p in results if p.type == type]
+        stmt = stmt.where(PlaceDB.type == type.value)
 
     if best_time:
-        results = [p for p in results if p.best_time == best_time]
+        stmt = stmt.where(PlaceDB.best_time == best_time.value)
 
     if max_duration_hours is not None:
-        results = [p for p in results if p.duration_hours <= max_duration_hours]
+        stmt = stmt.where(PlaceDB.duration_hours <= max_duration_hours)
 
-    return results
+    rows = db.execute(stmt).scalars().all()
+    return [to_place_api(r) for r in rows]
 
 
 @router.get("/places/{place_id}", response_model=Place)
-def get_place(place_id: int) -> Place:
-    places = load_places()
-    for p in places:
-        if p.id == place_id:
-            return p
-    raise HTTPException(status_code=404, detail="Place not found")
+def get_place(place_id: int, db: Session = Depends(get_db)) -> Place:
+    row = db.get(PlaceDB, place_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Place not found")
+    return to_place_api(row)
