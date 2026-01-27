@@ -7,7 +7,7 @@ on:
     branches: ["main"]
 
 jobs:
-  test:
+  lint-and-test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,13 +29,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Lint (ruff)
+        run: |
+          ruff check .
+
       - name: Run tests
         run: |
           pytest -q
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: lint-and-test
     if: ${{ github.event_name == 'push' }}
     steps:
       - name: Checkout
