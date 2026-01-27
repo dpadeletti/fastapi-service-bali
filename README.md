@@ -34,3 +34,9 @@ fastapi-service/
 ├── .gitignore
 ├── requirements.txt
 └── README.md
+
+## Docker
+
+### Run (prod-like)
+```bash
+docker compose up --build api
