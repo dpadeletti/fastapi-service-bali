@@ -31,6 +31,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+psycopg://bali:bali@localhost:5432/bali
+      PYTHONPATH: .
 
     steps:
       - name: Checkout
