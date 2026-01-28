@@ -13,6 +13,9 @@ from app.db.seed import seed_places_if_empty
 # Import dei modelli SQLAlchemy per registrarli su Base.metadata
 from app.db.models import place as _place_model  # noqa: F401
 
+from app.api import itineraries
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,3 +44,5 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+app.include_router(itineraries.router)
