@@ -54,6 +54,10 @@ jobs:
       - name: Run migrations (alembic)
         run: |
           alembic upgrade head
+      
+      - name: Seed database
+        run: |
+          python scripts/seed_db.py
 
       - name: Run tests
         run: |
