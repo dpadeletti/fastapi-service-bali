@@ -1,18 +1,31 @@
 services:
+  db:
+    image: postgres:16
+    container_name: bali-db
+    environment:
+      POSTGRES_USER: bali
+      POSTGRES_PASSWORD: bali
+      POSTGRES_DB: bali
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
   api:
     build: .
     container_name: bali-api
+    depends_on:
+      - db
     ports:
       - "8000:8000"
     env_file:
       - .env
-    volumes:
-      - ./bali.db:/app/bali.db
-  
 
   api-dev:
     build: .
     container_name: bali-api-dev
+    depends_on:
+      - db
     ports:
       - "8001:8000"
     env_file:
@@ -21,4 +34,6 @@ services:
     volumes:
       - ./app:/app/app
       - ./data:/app/data
-      - ./bali.db:/app/bali.db
+
+volumes:
+  pgdata:

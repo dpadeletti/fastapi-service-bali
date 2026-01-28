@@ -14,6 +14,25 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13"]
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: bali
+          POSTGRES_PASSWORD: bali
+          POSTGRES_DB: bali
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U bali -d bali"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DATABASE_URL: postgresql+psycopg://bali:bali@localhost:5432/bali
+      PYTHONPATH: .
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,6 +51,14 @@ jobs:
       - name: Lint (ruff)
         run: |
           ruff check .
+
+      - name: Run migrations (alembic)
+        run: |
+          alembic upgrade head
+      
+      - name: Seed database
+        run: |
+          python scripts/seed_db.py
 
       - name: Run tests
         run: |

@@ -22,6 +22,9 @@ async def lifespan(app: FastAPI):
     # Startup
     Base.metadata.create_all(bind=engine)
 
+    if settings.database_url.startswith("sqlite"):
+        Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
     try:
         seed_places_if_empty(db)
