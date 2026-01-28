@@ -1,156 +1,162 @@
-# 🌴 Bali Trip Planner API
+# FastAPI Service — Bali 🌴
 
-Un servizio **FastAPI** pensato come progetto *portfolio-level* per dimostrare buone pratiche di **backend development, DevOps e CI/CD**.
+[![CI](https://github.com/dpadeletti/fastapi-service-bali/actions/workflows/ci.yml/badge.svg)](https://github.com/dpadeletti/fastapi-service-bali/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-DB-316192?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-containerized-2496ED?logo=docker&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-L’API espone una mini base dati di luoghi e attività a **Bali**, con filtri e test automatici, ed è completamente **dockerizzata** e **integrata con GitHub Actions**.
+Backend service built with **FastAPI**, **SQLAlchemy**, and **PostgreSQL**, designed as a realistic DevOps/MLOps-style project.  
+The API manages **places** and **travel itineraries** for Bali, with full CRUD, database migrations, Docker, and CI.
 
 ![Bali cover](https://images.unsplash.com/photo-1507525428034-b723cf961d3e)
 
 ---
 
-## ✨ Feature principali
+## ✨ Features
 
-* 🚀 FastAPI con struttura production-ready
-* 📍 Endpoint `/places` con filtri (area, tipo, durata, best time)
-* ❤️ Healthcheck `/health`
-* 🧪 Test automatici con pytest
-* 🐳 Docker & docker-compose (dev + prod-like)
-* 🔁 CI con GitHub Actions (lint + test + Docker build)
-
----
-
-## 🧱 Architettura (high level)
-
-* **API**: FastAPI
-* **Config**: `.env` + Pydantic Settings
-* **Data source**: file JSON (facilmente sostituibile con DB)
-* **CI**: GitHub Actions
-* **Container**: Docker
+- FastAPI REST API
+- CRUD for itineraries (POST / GET / PUT / PATCH / DELETE)
+- Places catalog (seeded data)
+- SQLAlchemy ORM
+- Alembic migrations
+- PostgreSQL (Dockerized)
+- Docker & docker-compose
+- CI with GitHub Actions
+  - Ruff (lint)
+  - Pytest
+  - PostgreSQL service
+  - Alembic migrations + DB seed
+  - Python matrix (3.12 / 3.13)
+- Architecture diagram in `docs/`
 
 ---
 
-## 📁 Struttura del progetto
+## 🏗 Architecture Diagram
 
-```text
-fastapi-service-bali/
-│
+![Architecture diagram](docs/architecture-diagram.png)
+
+**Flow:** Client → FastAPI → Postgres.  
+Schema changes are managed with **Alembic**.  
+CI runs on **GitHub Actions** (lint + migrations + seed + tests).
+
+---
+
+## 🗂 Project Structure
+
+```
+.
 ├── app/
-│   ├── main.py
-│   ├── api/
-│   │   ├── health.py
-│   │   └── places.py
-│   ├── models/
-│   │   └── place.py
-│   ├── core/
-│   │   ├── config.py
-│   │   └── logging.py
-│   └── __init__.py
-│
-├── data/
-│   └── places.json
-│
-├── tests/
-│   ├── test_health.py
-│   └── test_places.py
-│
-├── .github/workflows/
-│   └── ci.yml
-│
-├── Dockerfile
+│   ├── api/            # FastAPI routers
+│   ├── core/           # Settings & config
+│   ├── db/             # DB session, models, seed
+│   ├── models/         # Pydantic schemas
+│   └── main.py         # FastAPI app
+├── alembic/             # DB migrations
+├── scripts/             # Utility scripts (e.g. seed DB for CI)
+├── tests/               # Pytest suite
+├── docs/                # Documentation assets (diagrams, etc.)
 ├── docker-compose.yml
-├── pytest.ini
+├── Dockerfile
 ├── requirements.txt
-├── .gitignore
 └── README.md
 ```
 
 ---
 
-## ⚙️ Requisiti
+## 🚀 Running Locally (Docker)
 
-* Python **3.12+**
-* Docker & Docker Compose
+### 1) Environment variables
+
+Create a `.env` file:
+
+```
+DATABASE_URL=postgresql+psycopg://bali:bali@db:5432/bali
+```
+
+### 2) Start services
+
+```
+docker compose up -d db api
+```
+
+### 3) Run migrations (recommended way)
+
+Run migrations with a one-shot container (does not start Uvicorn):
+
+```
+docker compose run --rm api alembic upgrade head
+```
+
+### 4) API available at
+
+- Health check: `http://127.0.0.1:8000/health`
+- Swagger UI: `http://127.0.0.1:8000/docs`
 
 ---
 
-## ▶️ Avvio locale (senza Docker)
+## 🧪 Running Tests
 
-```bash
-python -m venv .venv
-source .venv/bin/activate   # macOS/Linux
-# .venv\Scripts\activate    # Windows
+### Local
 
-pip install -r requirements.txt
-uvicorn app.main:app --reload
 ```
-
-* API: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-* Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-
----
-
-## 🐳 Avvio con Docker
-
-### Dev mode (hot reload)
-
-```bash
-docker compose up --build api-dev
-```
-
-* API: [http://127.0.0.1:8001](http://127.0.0.1:8001)
-* Docs: [http://127.0.0.1:8001/docs](http://127.0.0.1:8001/docs)
-
-### Prod-like mode
-
-```bash
-docker compose up --build api
-```
-
-* API: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-* Docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-
----
-
-## 🧪 Test
-
-```bash
 pytest
 ```
 
----
+### CI
 
-## 🔁 Continuous Integration
+CI runs automatically on **pull requests and pushes to `main`** and includes:
 
-La pipeline GitHub Actions esegue automaticamente:
-
-* Lint del codice con **Ruff**
-* Test con **pytest**
-* Matrix Python **3.12 / 3.13**
-* Build dell’immagine Docker (senza push)
-
-Ogni push o Pull Request verso `main` deve passare la CI.
+- Ruff linting
+- PostgreSQL service
+- Alembic migrations
+- Database seed
+- Pytest (Python 3.12 & 3.13)
 
 ---
 
-## 🎯 Obiettivo del progetto
+## 🗄 Database & Migrations
 
-Questo progetto nasce come **esercizio pratico** per:
-
-* lavorare in modo realistico su un backend API
-* simulare flussi di lavoro di team DevOps/MLOps
-* creare una base solida per estensioni future (DB, auth, recommendation engine)
+- Database schema is managed **via Alembic**.
+- SQLite can be used for local experiments, but PostgreSQL is the reference DB.
+- Migrations should run before starting the API in a fresh environment.
 
 ---
 
-## 🚧 Prossimi sviluppi possibili
+## 🧭 Example API Usage
 
-* Itinerari giornalieri (`/itinerary`)
-* Persistenza dati (PostgreSQL)
-* Sistema di raccomandazione (rule-based / ML)
-* Deploy automatico (CD)
+### Create an itinerary
+
+```
+POST /itineraries
+{
+  "title": "Bali 2 days",
+  "days": [
+    {
+      "day_number": 1,
+      "stops": [{"place_id": 1, "order": 1}]
+    }
+  ]
+}
+```
+
+### Get all places
+
+```
+GET /places
+```
 
 ---
 
-## 👤 Davide Padeletti
+## 📌 Notes
 
-Progetto realizzato a scopo didattico e di crescita professionale.
+- Designed as a **production-style backend project**, not a toy example.
+- Focus on correctness, migrations, CI, and Docker workflow.
+- Ready for future extensions (auth, recommendations, deployment/CD).
+
+---
+
+## 📜 License
+
+MIT
