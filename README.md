@@ -35,7 +35,7 @@ The API manages **places** and **travel itineraries** for Bali, with full CRUD, 
 
 ## 🏗 Architecture Diagram
 
-![Architecture diagram](docs/architecture-diagram.png)
+![Architecture diagram](docs/architecture_diagram.png)
 
 **Flow:** Client → FastAPI → Postgres.  
 Schema changes are managed with **Alembic**.  
