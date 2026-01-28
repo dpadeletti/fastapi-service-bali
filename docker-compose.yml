@@ -6,6 +6,9 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    volumes:
+      - ./bali.db:/app/bali.db
+  
 
   api-dev:
     build: .
@@ -18,3 +21,4 @@ services:
     volumes:
       - ./app:/app/app
       - ./data:/app/data
+      - ./bali.db:/app/bali.db

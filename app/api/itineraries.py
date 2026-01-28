@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db.session import SessionLocal
 from app.db.models.place import PlaceDB
-from app.db.models.itinerary import ItineraryDB, ItineraryDayDB, ItineraryStopDB
-from app.models.itinerary import ItineraryCreate, ItineraryOut, DayOut, StopOut
+from app.db.models.itinerary import ItineraryDB, ItineraryDayDB, ItineraryStopDB  
+from app.models.itinerary import ItineraryCreate, ItineraryOut, DayOut, StopOut, ItineraryPatch 
 
 
 router = APIRouter(tags=["itineraries"])
@@ -92,3 +92,105 @@ def get_itinerary(itinerary_id: int, db: Session = Depends(get_db)) -> Itinerary
     if not it:
         raise HTTPException(status_code=404, detail="Itinerary not found")
     return to_out(it)
+
+@router.put("/itineraries/{itinerary_id}", response_model=ItineraryOut)
+def replace_itinerary(
+    itinerary_id: int,
+    payload: ItineraryCreate,
+    db: Session = Depends(get_db),
+) -> ItineraryOut:
+    it = (
+        db.execute(
+            select(ItineraryDB)
+            .where(ItineraryDB.id == itinerary_id)
+            .options(selectinload(ItineraryDB.days).selectinload(ItineraryDayDB.stops))
+        )
+        .scalars()
+        .first()
+    )
+    if not it:
+        raise HTTPException(status_code=404, detail="Itinerary not found")
+
+    # Validate that all place_id exist
+    place_ids = {s.place_id for day in payload.days for s in day.stops}
+    if place_ids:
+        existing = db.execute(select(PlaceDB.id).where(PlaceDB.id.in_(place_ids))).scalars().all()
+        missing = place_ids - set(existing)
+        if missing:
+            raise HTTPException(status_code=400, detail=f"Unknown place_id(s): {sorted(missing)}")
+
+    it.title = payload.title
+
+    # Replace nested structure deterministically
+    it.days.clear()
+    db.flush()  # <-- IMPORTANT: applica le delete-orphan prima di inserire i nuovi days
+    for day in payload.days:
+        day_db = ItineraryDayDB(day_number=day.day_number)
+        for stop in day.stops:
+            day_db.stops.append(
+                ItineraryStopDB(
+                    place_id=stop.place_id,
+                    order=stop.order,
+                    note=stop.note,
+                )
+            )
+        it.days.append(day_db)
+
+    db.commit()
+
+    it_full = (
+        db.execute(
+            select(ItineraryDB)
+            .where(ItineraryDB.id == itinerary_id)
+            .options(selectinload(ItineraryDB.days).selectinload(ItineraryDayDB.stops))
+        )
+        .scalars()
+        .one()
+    )
+    return to_out(it_full)
+
+
+@router.patch("/itineraries/{itinerary_id}", response_model=ItineraryOut)
+def patch_itinerary(
+    itinerary_id: int,
+    payload: ItineraryPatch,
+    db: Session = Depends(get_db),
+) -> ItineraryOut:
+    it = (
+        db.execute(
+            select(ItineraryDB)
+            .where(ItineraryDB.id == itinerary_id)
+            .options(selectinload(ItineraryDB.days).selectinload(ItineraryDayDB.stops))
+        )
+        .scalars()
+        .first()
+    )
+    if not it:
+        raise HTTPException(status_code=404, detail="Itinerary not found")
+
+    if payload.title is not None:
+        it.title = payload.title
+
+    db.commit()
+
+    it_full = (
+        db.execute(
+            select(ItineraryDB)
+            .where(ItineraryDB.id == itinerary_id)
+            .options(selectinload(ItineraryDB.days).selectinload(ItineraryDayDB.stops))
+        )
+        .scalars()
+        .one()
+    )
+    return to_out(it_full)
+
+
+@router.delete("/itineraries/{itinerary_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_itinerary(itinerary_id: int, db: Session = Depends(get_db)) -> None:
+    it = db.get(ItineraryDB, itinerary_id)
+    if not it:
+        raise HTTPException(status_code=404, detail="Itinerary not found")
+
+    db.delete(it)
+    db.commit()
+    return None

@@ -49,3 +49,6 @@ class ItineraryOut(BaseModel):
     id: int
     title: str
     days: list[DayOut] = Field(default_factory=list)
+
+class ItineraryPatch(BaseModel):
+    title: str | None = Field(default=None, min_length=3, max_length=120)
