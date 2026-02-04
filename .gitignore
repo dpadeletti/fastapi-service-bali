@@ -28,3 +28,11 @@ Thumbs.db
 .coverage
 htmlcov/
 *.log
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+
+# tfvars (spesso contiene segreti)
+infra/*.tfvars

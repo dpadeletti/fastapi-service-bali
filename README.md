@@ -7,156 +7,200 @@
 ![Docker](https://img.shields.io/badge/Docker-containerized-2496ED?logo=docker&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Backend service built with **FastAPI**, **SQLAlchemy**, and **PostgreSQL**, designed as a realistic DevOps/MLOps-style project.  
-The API manages **places** and **travel itineraries** for Bali, with full CRUD, database migrations, Docker, and CI.
+Backend **production-style** costruito con FastAPI e deployato su **AWS** usando **Terraform**.
+
+Il progetto simula un servizio reale (non un tutorial giocattolo) e copre:
+- API REST
+- database persistente
+- migrazioni versionate
+- container Docker
+- deploy cloud ripetibile
 
 ![Bali cover](https://images.unsplash.com/photo-1507525428034-b723cf961d3e)
-
 ---
 
-## ✨ Features
+## 🎯 Obiettivo
 
-- FastAPI REST API
-- CRUD for itineraries (POST / GET / PUT / PATCH / DELETE)
-- Places catalog (seeded data)
+Costruire un backend moderno e realistico che includa:
+
+- FastAPI + Pydantic
+- PostgreSQL
 - SQLAlchemy ORM
-- Alembic migrations
-- PostgreSQL (Dockerized)
-- Docker & docker-compose
-- CI with GitHub Actions
-  - Ruff (lint)
-  - Pytest
-  - PostgreSQL service
-  - Alembic migrations + DB seed
-  - Python matrix (3.12 / 3.13)
-- Architecture diagram in `docs/`
+- Alembic come unica fonte di verità dello schema
+- Docker
+- Deploy su AWS (ECS Fargate + ALB + RDS)
+- Infrastruttura come codice (Terraform)
 
 ---
 
-## 🏗 Architecture Diagram
+## 🧱 Stack tecnologico
 
-![Architecture diagram](docs/architecture_diagram.png)
-
-**Flow:** Client → FastAPI → Postgres.  
-Schema changes are managed with **Alembic**.  
-CI runs on **GitHub Actions** (lint + migrations + seed + tests).
+- **FastAPI** — API REST
+- **Pydantic** — validazione input/output
+- **SQLAlchemy** — ORM
+- **Alembic** — migrazioni DB
+- **PostgreSQL (RDS)** — database
+- **Docker** — containerizzazione
+- **AWS ECS Fargate** — runtime container
+- **AWS ALB** — load balancer pubblico
+- **AWS ECR** — registry immagini Docker
+- **AWS Secrets Manager** — segreti applicativi
+- **Terraform** — Infrastructure as Code
+- **Pytest** — test
+- **Ruff** — lint
 
 ---
 
-## 🗂 Project Structure
+## 📁 Struttura del progetto
 
 ```
 .
 ├── app/
-│   ├── api/            # FastAPI routers
-│   ├── core/           # Settings & config
-│   ├── db/             # DB session, models, seed
-│   ├── models/         # Pydantic schemas
-│   └── main.py         # FastAPI app
-├── alembic/             # DB migrations
-├── scripts/             # Utility scripts (e.g. seed DB for CI)
-├── tests/               # Pytest suite
-├── docs/                # Documentation assets (diagrams, etc.)
-├── docker-compose.yml
+│   ├── api/            # Router FastAPI (health, places, itineraries)
+│   ├── core/           # Config & logging
+│   ├── db/             # Engine, session, models SQLAlchemy, seed
+│   ├── models/         # Schemi Pydantic
+│   └── main.py         # FastAPI app (lifespan)
+├── alembic/            # Migrazioni DB
+├── scripts/            # Script one-off (seed DB)
+├── tests/              # Test Pytest
+├── infra/              # Terraform (AWS infrastructure)
 ├── Dockerfile
+├── docker-compose.yml
 ├── requirements.txt
 └── README.md
 ```
 
 ---
 
-## 🚀 Running Locally (Docker)
+## 🧩 Funzionalità
 
-### 1) Environment variables
+### Health
+- `GET /health`
 
-Create a `.env` file:
+### Places
+- `GET /places`
+- `GET /places/{id}`
+- Filtri (es. area)
+- Seed dati idempotente
 
+### Itineraries (CRUD)
+- `POST /itineraries`
+- `GET /itineraries/{id}`
+- `PUT /itineraries/{id}`
+- `PATCH /itineraries/{id}`
+- `DELETE /itineraries/{id}`
+
+✔ Validazione `place_id`  
+✔ Relazioni: itineraries → days → stops  
+✔ Test completi
+
+---
+
+## 🗄 Database & Migrazioni
+
+- PostgreSQL come DB principale
+- **Alembic è l’unica fonte di verità dello schema**
+- `Base.metadata.create_all()` **disabilitato su Postgres**
+- Usato solo per SQLite locale (opzionale)
+
+Migrazioni:
+```bash
+alembic upgrade head
 ```
-DATABASE_URL=postgresql+psycopg://bali:bali@db:5432/bali
-```
 
-### 2) Start services
+---
 
-```
-docker compose up -d db api
-```
+## 🐳 Docker (locale)
 
-### 3) Run migrations (recommended way)
-
-Run migrations with a one-shot container (does not start Uvicorn):
-
-```
+```bash
+docker compose up -d db
 docker compose run --rm api alembic upgrade head
-```
-
-### 4) API available at
-
-- Health check: `http://127.0.0.1:8000/health`
-- Swagger UI: `http://127.0.0.1:8000/docs`
-
----
-
-## 🧪 Running Tests
-
-### Local
-
-```
-pytest
-```
-
-### CI
-
-CI runs automatically on **pull requests and pushes to `main`** and includes:
-
-- Ruff linting
-- PostgreSQL service
-- Alembic migrations
-- Database seed
-- Pytest (Python 3.12 & 3.13)
-
----
-
-## 🗄 Database & Migrations
-
-- Database schema is managed **via Alembic**.
-- SQLite can be used for local experiments, but PostgreSQL is the reference DB.
-- Migrations should run before starting the API in a fresh environment.
-
----
-
-## 🧭 Example API Usage
-
-### Create an itinerary
-
-```
-POST /itineraries
-{
-  "title": "Bali 2 days",
-  "days": [
-    {
-      "day_number": 1,
-      "stops": [{"place_id": 1, "order": 1}]
-    }
-  ]
-}
-```
-
-### Get all places
-
-```
-GET /places
+docker compose up -d api
 ```
 
 ---
 
-## 📌 Notes
+## ☁️ Deploy su AWS (Terraform)
 
-- Designed as a **production-style backend project**, not a toy example.
-- Focus on correctness, migrations, CI, and Docker workflow.
-- Ready for future extensions (auth, recommendations, deployment/CD).
+L’infrastruttura è definita in `infra/` e include:
+
+- VPC
+- Subnet pubbliche
+- Application Load Balancer
+- ECS Fargate (service + task definition)
+- ECR
+- RDS PostgreSQL
+- Secrets Manager
+- CloudWatch Logs
+
+### Provisioning infrastruttura
+
+```bash
+cd infra
+terraform init
+terraform apply
+```
+
+Output principali:
+- `alb_dns_name`
+- `ecr_repo_url`
 
 ---
 
-## 📜 License
+## 📦 Build & Push immagine su ECR
+
+```bash
+AWS_REGION=eu-north-1
+ECR_URL="<ecr_repo_url>"
+
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$(echo $ECR_URL | cut -d/ -f1)"
+
+docker build -t bali-api:latest .
+docker tag bali-api:latest "$ECR_URL:latest"
+docker push "$ECR_URL:latest"
+```
+
+Poi forzare il redeploy del service ECS.
+
+---
+
+## 🛠 One-off task ECS (migrazioni / seed)
+
+Usate per operazioni amministrative in produzione.
+
+### Migrazioni
+```bash
+alembic upgrade head
+```
+
+### Seed dati
+```bash
+sh -lc "PYTHONPATH=/app python /app/scripts/seed_db.py"
+```
+
+---
+
+## 🔍 Verifica
+
+```bash
+curl http://<alb_dns_name>/health
+curl http://<alb_dns_name>/places
+```
+
+---
+
+## 🧠 Concetti chiave
+
+- **No `create_all()` in produzione**
+- **Alembic gestisce lo schema**
+- **One-off ECS tasks** per job amministrativi
+- **Terraform come contratto dell’infrastruttura**
+- **Container immutabili**
+
+
+---
+
+## 📜 Licenza
 
 MIT

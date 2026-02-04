@@ -16,12 +16,9 @@ from app.db.models import place as _place_model  # noqa: F401
 from app.api import itineraries
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    Base.metadata.create_all(bind=engine)
-
     if settings.database_url.startswith("sqlite"):
         Base.metadata.create_all(bind=engine)
 
@@ -32,6 +29,7 @@ async def lifespan(app: FastAPI):
         db.close()
 
     yield
+
 
     # Shutdown (se in futuro servirà: chiudere risorse, connessioni, ecc.)
 
