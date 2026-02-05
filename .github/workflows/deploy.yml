@@ -46,7 +46,9 @@ jobs:
           set -euo pipefail
           IMAGE_URI="$ECR_REGISTRY/${ECR_REPO}:${IMAGE_TAG}"
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-          docker build -t "$IMAGE_URI" .
+          echo "Building with GIT_SHA=$GITHUB_SHA"
+          docker build --build-arg GIT_SHA="$GITHUB_SHA" -t "$IMAGE_URI" .
+          docker run --rm "$IMAGE_URI" sh -lc 'echo "Container GIT_SHA=$GIT_SHA" | grep -v "unknown"'
           docker push "$IMAGE_URI"
 
       - name: Get current task definition ARN from service
