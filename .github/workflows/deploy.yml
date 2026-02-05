@@ -1,0 +1,84 @@
+name: Deploy API to ECS (OIDC)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-north-1
+  AWS_ACCOUNT_ID: "216571348735"
+
+  ECR_REPO: bali-api
+  ECS_CLUSTER: bali-dev-cluster
+  ECS_SERVICE: bali-dev-api
+
+  CONTAINER_NAME: api
+  DEPLOY_ROLE_ARN: arn:aws:iam::216571348735:role/github-actions-bali-api-deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image (tag = git sha)
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          IMAGE_URI="$ECR_REGISTRY/${ECR_REPO}:${IMAGE_TAG}"
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+
+      - name: Get current task definition ARN from service
+        run: |
+          set -euo pipefail
+          aws ecs describe-services \
+            --cluster "${ECS_CLUSTER}" \
+            --services "${ECS_SERVICE}" \
+            --query "services[0].taskDefinition" \
+            --output text > taskdef_arn.txt
+
+      - name: Download current task definition JSON
+        run: |
+          set -euo pipefail
+          TASKDEF_ARN="$(cat taskdef_arn.txt)"
+          aws ecs describe-task-definition \
+            --task-definition "$TASKDEF_ARN" \
+            --query "taskDefinition" \
+            --output json > taskdef.json
+
+      - name: Render new task definition with updated image
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: taskdef.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ env.IMAGE_URI }}
+
+      - name: Deploy to ECS service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
