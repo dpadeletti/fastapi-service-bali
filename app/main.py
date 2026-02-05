@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
+import os
+import logging
 
 from fastapi import FastAPI
 
-from app.api import health, places
+from app.api import health, places, itineraries
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -13,12 +15,14 @@ from app.db.seed import seed_places_if_empty
 # Import dei modelli SQLAlchemy per registrarli su Base.metadata
 from app.db.models import place as _place_model  # noqa: F401
 
-from app.api import itineraries
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    git_sha = os.getenv("GIT_SHA", "unknown")
+    logger = logging.getLogger("uvicorn.error")
+    logger.info("🚀 API startup", extra={"git_sha": git_sha})
+
     if settings.database_url.startswith("sqlite"):
         Base.metadata.create_all(bind=engine)
 
@@ -30,7 +34,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-
     # Shutdown (se in futuro servirà: chiudere risorse, connessioni, ecc.)
 
 
@@ -40,10 +43,9 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(places.router)
+    app.include_router(itineraries.router)
 
     return app
 
 
 app = create_app()
-
-app.include_router(itineraries.router)

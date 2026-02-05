@@ -1,9 +1,12 @@
 FROM python:3.12-slim
 
+ARG GIT_SHA=unknown
+
 # Evita file .pyc e logga subito su stdout
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    GIT_SHA=${GIT_SHA}
 
 WORKDIR /app
 

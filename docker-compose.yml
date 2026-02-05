@@ -12,7 +12,10 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: local
     container_name: bali-api
     depends_on:
       - db
@@ -22,7 +25,10 @@ services:
       - .env
 
   api-dev:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: local-dev
     container_name: bali-api-dev
     depends_on:
       - db
