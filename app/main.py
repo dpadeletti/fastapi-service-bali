@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
     # Startup
     git_sha = os.getenv("GIT_SHA", "unknown")
     logger = logging.getLogger("uvicorn.error")
-    logger.info("🚀 API startup", extra={"git_sha": git_sha})
+    logger.info(f"🚀 API startup (git_sha={git_sha})")
 
     if settings.database_url.startswith("sqlite"):
         Base.metadata.create_all(bind=engine)

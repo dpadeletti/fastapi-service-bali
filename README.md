@@ -148,6 +148,34 @@ Output principali:
 
 ---
 
+## 🚀 Continuous Delivery (GitHub Actions + OIDC)
+
+Ogni push su `main`:
+
+- GitHub Actions assume un IAM Role via OIDC
+- Build immagine Docker
+- Tag immutabile = git SHA
+- Push su ECR
+- Deploy automatico su ECS
+
+✔ Nessuna AWS access key
+✔ Nessun secret statico
+✔ Terraform non coinvolto nel CD (solo lifecycle app)
+
+---
+
+
+## 🧾 Versioning & Observability
+
+- Ogni immagine Docker è taggata con il git SHA
+- Lo SHA viene loggato allo startup dell’app
+- I log sono disponibili in CloudWatch Logs
+
+Esempio:
+```bash
+🚀 API startup (git_sha=3a9f2c1e...)
+```
+--- 
 ## 📦 Build & Push immagine su ECR
 
 ```bash
@@ -197,7 +225,7 @@ curl http://<alb_dns_name>/places
 - **One-off ECS tasks** per job amministrativi
 - **Terraform come contratto dell’infrastruttura**
 - **Container immutabili**
-
+- **OIDC al posto di access key**
 
 ---
 
