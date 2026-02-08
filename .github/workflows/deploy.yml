@@ -48,22 +48,24 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Check cluster
-          if ! aws ecs describe-clusters \
-              --clusters "${ECS_CLUSTER}" \
-              --query "clusters[0].status" \
-              --output text 2>/dev/null | grep -q "ACTIVE"; then
+          CLUSTER_STATUS="$(aws ecs describe-clusters \
+            --clusters "${ECS_CLUSTER}" \
+            --query "clusters[0].status" \
+            --output text 2>/dev/null || true)"
+
+          if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
             echo "Infra not found: ECS cluster '${ECS_CLUSTER}' is missing or not ACTIVE."
             echo "Run: cd infra && terraform apply"
             exit 1
           fi
 
-          # Check service
-          if ! aws ecs describe-services \
-              --cluster "${ECS_CLUSTER}" \
-              --services "${ECS_SERVICE}" \
-              --query "services[0].status" \
-              --output text 2>/dev/null | grep -q "ACTIVE"; then
+          SERVICE_STATUS="$(aws ecs describe-services \
+            --cluster "${ECS_CLUSTER}" \
+            --services "${ECS_SERVICE}" \
+            --query "services[0].status" \
+            --output text 2>/dev/null || true)"
+
+          if [ "$SERVICE_STATUS" != "ACTIVE" ]; then
             echo "Infra not found: ECS service '${ECS_SERVICE}' is missing or not ACTIVE."
             echo "Run: cd infra && terraform apply"
             exit 1
