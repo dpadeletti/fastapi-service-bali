@@ -25,7 +25,9 @@ def get_db() -> Session:
 
 def to_place_api(row: PlaceDB) -> Place:
     """
-    Converte il modello DB (SQLAlchemy) nel modello API (Pydantic) usato come response_model.
+    Mappa i dati dal modello DB al modello API.
+    Gestisce la deserializzazione dei tag: converte la stringa CSV salvata nel DB 
+    (es. 'tag1,tag2') in una lista Python pulita (es. ['tag1', 'tag2']).
     """
     tags = [t for t in (row.tags or "").split(",") if t]  # "a,b,c" -> ["a","b","c"]
     return Place.model_validate(
@@ -52,6 +54,13 @@ def list_places(
     ),
     db: Session = Depends(get_db),
 ) -> list[Place]:
+    """
+    Ricerca filtrata dei luoghi d'interesse dal DB.
+    - area: Ricerca parziale case-insensitive (ILike).
+    - type/best_time: Filtri esatti basati su Enum.
+    - max_duration_hours: Filtro numerico (minore o uguale a).
+    Restituisce una lista di oggetti Place (modello API) filtrati.
+    """
     stmt: Select = select(PlaceDB)
 
     if area:
@@ -73,6 +82,10 @@ def list_places(
 
 @router.get("/places/{place_id}", response_model=Place)
 def get_place(place_id: int, db: Session = Depends(get_db)) -> Place:
+    """
+    Recupera un luogo specifico dal DB tramite ID.
+    Se il luogo non esiste, restituisce un errore 404.
+    """
     row = db.get(PlaceDB, place_id)
     if not row:
         raise HTTPException(status_code=404, detail="Place not found")

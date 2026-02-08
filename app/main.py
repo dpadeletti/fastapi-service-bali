@@ -14,11 +14,21 @@ from app.db.seed import seed_places_if_empty
 
 # Import dei modelli SQLAlchemy per registrarli su Base.metadata
 from app.db.models import place as _place_model  # noqa: F401
+from app.db.models import itinerary as _itinerary_model  # noqa: F401
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    """
+    Lifespan per l'app FastAPI.
+    Gestisce le operazioni di avvio e spegnimento dell'applicazione.
+    
+    Durante lo startup:
+    1. Registra la versione del codice (GIT_SHA).
+    2. Crea le tabelle se si usa SQLite.
+    3. Esegue il seeding dei dati iniziali dei luoghi.
+    
+    """
     git_sha = os.getenv("GIT_SHA", "unknown")
     logger = logging.getLogger("uvicorn.error")
     logger.info(f"🚀 API startup (git_sha={git_sha})")
@@ -38,6 +48,14 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    """
+    Inizializza e configura l'istanza FastAPI.
+    
+    Configura il logging, il ciclo di vita (lifespan) e registra tutti i router dell'applicazione.
+    
+    Returns:
+        FastAPI: L'applicazione configurata e pronta all'uso.
+    """ 
     setup_logging()
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
