@@ -94,8 +94,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TASKDEF_ARN="$(cat taskdef_arn.txt)"
-          aws ecs describe-task-definition \
+          TASKDEF_ARN="$(cat taskdef_arn.txt          T  aws ecs describe-task-definition \
             --task-definition "$TASKDEF_ARN" \
             --query "taskDefinition" \
             --output json > taskdef.json
