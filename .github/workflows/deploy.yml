@@ -1,9 +1,12 @@
 name: Deploy API to ECS (OIDC)
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY to confirm"
+        required: true
+        default: ""
 
 permissions:
   id-token: write
@@ -25,6 +28,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Guardrail
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "DEPLOY" ]; then
+            echo "Confirmation missing. Type DEPLOY to run."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -33,6 +43,33 @@ jobs:
         with:
           role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Pre-check: verify ECS infra exists
+        run: |
+          set -euo pipefail
+
+          # Check cluster
+          if ! aws ecs describe-clusters \
+              --clusters "${ECS_CLUSTER}" \
+              --query "clusters[0].status" \
+              --output text 2>/dev/null | grep -q "ACTIVE"; then
+            echo "Infra not found: ECS cluster '${ECS_CLUSTER}' is missing or not ACTIVE."
+            echo "Run: cd infra && terraform apply"
+            exit 1
+          fi
+
+          # Check service
+          if ! aws ecs describe-services \
+              --cluster "${ECS_CLUSTER}" \
+              --services "${ECS_SERVICE}" \
+              --query "services[0].status" \
+              --output text 2>/dev/null | grep -q "ACTIVE"; then
+            echo "Infra not found: ECS service '${ECS_SERVICE}' is missing or not ACTIVE."
+            echo "Run: cd infra && terraform apply"
+            exit 1
+          fi
+
+          echo "Infra OK: cluster and service found."
 
       - name: Login to ECR
         id: ecr
@@ -44,11 +81,16 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
+
           IMAGE_URI="$ECR_REGISTRY/${ECR_REPO}:${IMAGE_TAG}"
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
           echo "Building with GIT_SHA=$GITHUB_SHA"
           docker build --build-arg GIT_SHA="$GITHUB_SHA" -t "$IMAGE_URI" .
+
+          # Guard rail: fail if build arg not embedded
           docker run --rm "$IMAGE_URI" sh -lc 'echo "Container GIT_SHA=$GIT_SHA" | grep -v "unknown"'
+
           docker push "$IMAGE_URI"
 
       - name: Get current task definition ARN from service
