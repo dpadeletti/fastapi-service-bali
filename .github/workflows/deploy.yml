@@ -40,7 +40,7 @@ jobs:
           role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Pre-check: verify ECS infra exists
+      - name: Pre-check - verify ECS infrastructure
         shell: bash
         run: |
           set -euo pipefail
