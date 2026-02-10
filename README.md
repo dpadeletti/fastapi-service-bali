@@ -120,14 +120,12 @@ Usato quando l’API gira sul host con `uvicorn`.
 
 ```env
 DATABASE_URL=postgresql+psycopg://bali:bali@localhost:5432/bali
-
+```
 ---
 
 ## 🧪 Sviluppo locale vs Docker
 
 Il progetto può essere eseguito in **due modalità ufficiali**.
-
----
 
 ### ▶️ Modalità LOCAL (API senza Docker)
 
@@ -137,7 +135,7 @@ Il progetto può essere eseguito in **due modalità ufficiali**.
 
 ```bash
 make local
-
+```
 ---
 
 ## 🧰 Makefile
@@ -151,7 +149,7 @@ make local        # DB in Docker + API locale (reload)
 make docker-dev   # API + DB in Docker (reload)
 make docker       # API + DB in Docker (prod-like)
 make clean        # Stop container e rimozione volumi
-
+```
 ---
 
 ## ☁️ Deploy su AWS (Terraform)

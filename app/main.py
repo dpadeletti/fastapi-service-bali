@@ -44,7 +44,15 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown (se in futuro servirà: chiudere risorse, connessioni, ecc.)
+    # Shutdown
+    logger.info("🛑 API shutting down...")
+    # Qui potresti chiudere connessioni a Redis, inviare un segnale
+    # a un sistema di monitoraggio o semplicemente loggare la chiusura.
+    # Utile se passi a DB più complessi come PostgreSQL
+    engine.dispose()
+
+    logger.info("✅ Shutdown completato. Risorse rilasciate.")
+    logger.info("Bye bye! 👋")
 
 
 def create_app() -> FastAPI:
