@@ -10,6 +10,12 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bali -d bali"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
 
   api:
     build:
@@ -22,7 +28,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - .env.docker
 
   api-dev:
     build:
@@ -35,7 +41,7 @@ services:
     ports:
       - "8001:8000"
     env_file:
-      - .env
+      - .env.docker
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     volumes:
       - ./app:/app/app
