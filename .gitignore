@@ -23,6 +23,8 @@ Thumbs.db
 
 # Env / secrets
 .env
+.env.local
+.env.docker
 
 # Coverage / reports
 .coverage

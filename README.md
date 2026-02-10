@@ -111,13 +111,46 @@ alembic upgrade head
 
 ---
 
-## 🐳 Docker (locale)
+## ⚙️ Configurazione environment
+
+Il progetto supporta **due modalità di sviluppo** distinte:
+
+### `.env.local` — sviluppo locale (API senza Docker)
+Usato quando l’API gira sul host con `uvicorn`.
+
+```env
+DATABASE_URL=postgresql+psycopg://bali:bali@localhost:5432/bali
+
+---
+
+## 🧪 Sviluppo locale vs Docker
+
+Il progetto può essere eseguito in **due modalità ufficiali**.
+
+---
+
+### ▶️ Modalità LOCAL (API senza Docker)
+
+- Database in Docker
+- API avviata in locale con hot-reload
+- Ideale per sviluppo e debug
 
 ```bash
-docker compose up -d db
-docker compose run --rm api alembic upgrade head
-docker compose up -d api
-```
+make local
+
+---
+
+## 🧰 Makefile
+
+Il progetto include un `Makefile` per standardizzare i comandi di sviluppo.
+
+Comandi principali:
+
+```bash
+make local        # DB in Docker + API locale (reload)
+make docker-dev   # API + DB in Docker (reload)
+make docker       # API + DB in Docker (prod-like)
+make clean        # Stop container e rimozione volumi
 
 ---
 
@@ -150,7 +183,7 @@ Output principali:
 
 ## 🚀 Continuous Delivery (GitHub Actions + OIDC)
 
-Ogni push su `main`:
+Il deploy è **manuale** (workflow_dispatch) per evitare costi AWS non necessari.
 
 - GitHub Actions assume un IAM Role via OIDC
 - Build immagine Docker
