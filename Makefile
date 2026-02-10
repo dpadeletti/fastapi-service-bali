@@ -1,4 +1,4 @@
-.PHONY: help check-env db-up db-wait db-down db-logs migrate local docker docker-dev logs pg-stop pg-rm clean
+.PHONY: help check-env db-up db-wait db-down db-logs migrate docker-migrate local docker docker-dev logs pg-stop pg-rm clean
 
 ENV_LOCAL := .env.local
 ENV_DOCKER := .env.docker
@@ -44,13 +44,16 @@ db-logs:
 migrate: check-env db-wait
 	@set -a; . ./$(ENV_LOCAL); set +a; alembic upgrade head
 
+docker-migrate: check-env
+	docker compose --env-file $(ENV_DOCKER) run --rm api alembic upgrade head
+
 local: check-env db-up migrate
 	@set -a; . ./$(ENV_LOCAL); set +a; uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-docker: check-env
+docker: check-env docker-migrate
 	docker compose --env-file $(ENV_DOCKER) up --build api
 
-docker-dev: check-env
+docker-dev: check-env docker-migrate
 	docker compose --env-file $(ENV_DOCKER) up --build api-dev
 
 logs:
