@@ -120,7 +120,7 @@ Usato quando l’API gira sul host con `uvicorn`.
 
 ```env
 DATABASE_URL=postgresql+psycopg://bali:bali@localhost:5432/bali
-
+```
 ---
 
 ## 🧪 Sviluppo locale vs Docker
