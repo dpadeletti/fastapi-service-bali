@@ -1,6 +1,7 @@
 services:
   db:
-    image: postgres:16
+    # immagine base che include pgvector
+    image: pgvector/pgvector:pg16
     container_name: bali-db
     environment:
       POSTGRES_USER: bali
@@ -29,6 +30,8 @@ services:
       - "8000:8000"
     env_file:
       - .env.docker
+    volumes:
+      - ./alembic:/app/alembic  # Mappa la cartella locale alla cartella nel container
 
   api-dev:
     build:
