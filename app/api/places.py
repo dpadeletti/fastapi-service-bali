@@ -115,7 +115,7 @@ async def chat_with_concierge(
     query_vector = ai_service.get_embedding(q)
     distance_column = PlaceDB.embedding.cosine_distance(query_vector)
     
-    stmt = select(PlaceDB).where(distance_column < 0.6).order_by(distance_column).limit(2)
+    stmt = select(PlaceDB).where(distance_column < 0.6).order_by(distance_column).limit(4)
     places = db.execute(stmt).scalars().all()
     
     # 2. Preparazione contesto per l'LLM
