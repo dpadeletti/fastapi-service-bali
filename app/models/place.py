@@ -11,6 +11,7 @@ class PlaceType(str, Enum):
     nature = "nature"
     adventure = "adventure"
     island = "island"
+    fun = "fun"
 
 
 class BestTime(str, Enum):
