@@ -3,8 +3,7 @@ from app.db.models.place import PlaceDB
 
 class AIService:
     def __init__(self):
-        # Dato che lanci l'app localmente sul Mac, usa localhost.
-        # Se un giorno vorrai far girare TUTTO dentro Docker, allora userai host.docker.internal.
+        # Indirizzo per parlare con Ollama (localhost perché usi 'make local')
         self.url = "http://localhost:11434/api/embeddings"
         self.model = "nomic-embed-text"
         print(f"🤖 AI Service caricato con Ollama (Modello: {self.model})")
@@ -15,8 +14,6 @@ class AIService:
                 "model": self.model,
                 "prompt": text
             }
-            # Un piccolo trucco: se localhost fallisce (perché magari sei in Docker),
-            # potresti voler provare host.docker.internal, ma per ora restiamo semplici.
             response = requests.post(self.url, json=payload, timeout=10)
             response.raise_for_status()
             return response.json()["embedding"]
@@ -25,6 +22,13 @@ class AIService:
             raise e
 
     def create_place_description(self, place: PlaceDB) -> str:
-        return f"Posto: {place.name}. Area: {place.area}. Caratteristiche: {place.tags}."
+        """
+        Crea una descrizione testuale ricca per generare un embedding preciso.
+        """
+        return (
+            f"Place: {place.name}. Type: {place.type}. "
+            f"Located in {place.area}. Best visited in the {place.best_time}. "
+            f"Tags and characteristics: {place.tags}."
+        )
 
 ai_service = AIService()

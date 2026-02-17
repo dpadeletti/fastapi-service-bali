@@ -1,3 +1,4 @@
+import requests
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -7,6 +8,11 @@ from sqlalchemy.orm import Session
 from app.db.models.place import PlaceDB
 from app.db.session import SessionLocal
 from app.models.place import BestTime, Place, PlaceType
+
+from app.services.ai_service import ai_service
+
+from fastapi.responses import StreamingResponse
+import json
 
 router = APIRouter(tags=["places"])
 
@@ -78,6 +84,64 @@ def list_places(
 
     rows = db.execute(stmt).scalars().all()
     return [to_place_api(r) for r in rows]
+
+@router.get("/places/search", response_model=list[Place])
+def search_places(
+    q: str = Query(..., description="Ricerca semantica"),
+    limit: int = Query(default=3, ge=1, le=10),
+    db: Session = Depends(get_db),
+) -> list[Place]:
+    query_vector = ai_service.get_embedding(q)
+    
+    # Calcoliamo la distanza
+    distance_column = PlaceDB.embedding.cosine_distance(query_vector)
+    
+    stmt = (
+        select(PlaceDB)
+        .where(distance_column < 0.4) # <--- SOGLIA: ignora tutto ciò che è troppo diverso
+        .order_by(distance_column)
+        .limit(limit)
+    )
+    
+    rows = db.execute(stmt).scalars().all()
+    return [to_place_api(r) for r in rows]
+
+@router.get("/places/chat")
+async def chat_with_concierge(
+    q: str = Query(..., description="Chiedi consiglio alla guida"),
+    db: Session = Depends(get_db)
+):
+    # 1. Ricerca Semantica (Retrieval)
+    query_vector = ai_service.get_embedding(q)
+    distance_column = PlaceDB.embedding.cosine_distance(query_vector)
+    
+    stmt = select(PlaceDB).where(distance_column < 0.6).order_by(distance_column).limit(2)
+    places = db.execute(stmt).scalars().all()
+    
+    # 2. Preparazione contesto per l'LLM
+    context = "No specific places found." if not places else "\n".join([
+        f"- {p.name} ({p.area}): {p.tags}. Best time: {p.best_time}." for p in places
+    ])
+
+    prompt = f"""You are a friendly Bali Travel Guide. 
+    User Question: "{q}"
+    Available Database Info:
+    {context}
+    Instructions: Use the info above to answer. Be short and tropical. 🌴"""
+
+    # 3. Funzione generatrice per lo streaming
+    def generate():
+        with requests.post(
+            "http://localhost:11434/api/generate",
+            json={"model": "llama3", "prompt": prompt, "stream": True},
+            stream=True
+        ) as r:
+            for line in r.iter_lines():
+                if line:
+                    chunk = json.loads(line)
+                    yield chunk.get("response", "")
+
+    return StreamingResponse(generate(), media_type="text/plain")
 
 
 @router.get("/places/{place_id}", response_model=Place)
