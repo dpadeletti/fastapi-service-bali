@@ -3,6 +3,7 @@ import os
 import logging
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api import health, places, itineraries
 from app.core.config import settings
@@ -71,6 +72,8 @@ def create_app() -> FastAPI:
     app.include_router(places.router)
     app.include_router(itineraries.router)
 
+    app.mount("/", StaticFiles(directory="static", html=True), name="static")
+    
     return app
 
 
