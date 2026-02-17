@@ -1,53 +1,23 @@
 [
-    {
-      "id": 1,
-      "name": "Tegallalang Rice Terrace",
-      "area": "Ubud",
-      "type": "nature",
-      "duration_hours": 2,
-      "best_time": "morning",
-      "price_level": "low",
-      "tags": ["rice", "view", "walk"]
-    },
-    {
-      "id": 2,
-      "name": "Uluwatu Temple",
-      "area": "Uluwatu",
-      "type": "temple",
-      "duration_hours": 2,
-      "best_time": "sunset",
-      "price_level": "low",
-      "tags": ["temple", "cliff", "sunset"]
-    },
-    {
-      "id": 3,
-      "name": "Seminyak Beach",
-      "area": "Seminyak",
-      "type": "beach",
-      "duration_hours": 3,
-      "best_time": "sunset",
-      "price_level": "medium",
-      "tags": ["beach", "surf", "chill"]
-    },
-    {
-      "id": 4,
-      "name": "Mount Batur Sunrise Hike",
-      "area": "Kintamani",
-      "type": "adventure",
-      "duration_hours": 6,
-      "best_time": "morning",
-      "price_level": "medium",
-      "tags": ["hike", "sunrise", "volcano"]
-    },
-    {
-      "id": 5,
-      "name": "Nusa Penida Day Trip",
-      "area": "Nusa Penida",
-      "type": "island",
-      "duration_hours": 10,
-      "best_time": "morning",
-      "price_level": "high",
-      "tags": ["island", "snorkeling", "daytrip"]
-    }
-  ]
-  
+  {"id": 1, "name": "Tegallalang Rice Terrace", "area": "Ubud", "type": "nature", "duration_hours": 2, "best_time": "morning", "price_level": "low", "tags": ["rice fields", "views", "instagram"]},
+  {"id": 2, "name": "Uluwatu Temple", "area": "Uluwatu", "type": "temple", "duration_hours": 2, "best_time": "sunset", "price_level": "low", "tags": ["temple", "cliffs", "ocean"]},
+  {"id": 3, "name": "Seminyak Beach", "area": "Seminyak", "type": "beach", "duration_hours": 3, "best_time": "sunset", "price_level": "medium", "tags": ["beach", "surf", "nightlife"]},
+  {"id": 4, "name": "Mount Batur", "area": "Kintamani", "type": "nature", "duration_hours": 6, "best_time": "morning", "price_level": "medium", "tags": ["hiking", "volcano", "sunrise"]},
+  {"id": 5, "name": "Nusa Penida", "area": "Nusa Penida", "type": "island", "duration_hours": 10, "best_time": "morning", "price_level": "high", "tags": ["island", "boat", "viewpoints"]},
+  {"id": 6, "name": "Sacred Monkey Forest", "area": "Ubud", "type": "nature", "duration_hours": 2, "best_time": "morning", "price_level": "medium", "tags": ["monkeys", "forest", "temple"]},
+  {"id": 7, "name": "Tanah Lot", "area": "Tabanan", "type": "temple", "duration_hours": 2, "best_time": "sunset", "price_level": "medium", "tags": ["ocean", "temple", "sunset"]},
+  {"id": 8, "name": "Tirta Gangga", "area": "Karangasem", "type": "temple", "duration_hours": 1, "best_time": "morning", "price_level": "low", "tags": ["water palace", "garden", "fountains"]},
+  {"id": 9, "name": "Gitgit Waterfall", "area": "Singaraja", "type": "nature", "duration_hours": 2, "best_time": "morning", "price_level": "low", "tags": ["waterfall", "jungle", "trekking"]},
+  {"id": 10, "name": "Echo Beach", "area": "Canggu", "type": "beach", "duration_hours": 3, "best_time": "sunset", "price_level": "medium", "tags": ["surf", "beach clubs", "seafood"]},
+  {"id": 11, "name": "Besakih Mother Temple", "area": "Karangasem", "type": "temple", "duration_hours": 3, "best_time": "morning", "price_level": "medium", "tags": ["spiritual", "history", "views"]},
+  {"id": 12, "name": "Handara Gate", "area": "Bedugul", "type": "nature", "duration_hours": 1, "best_time": "morning", "price_level": "low", "tags": ["gate", "mountains", "photo-spot"]},
+  {"id": 13, "name": "Amed Beach", "area": "Amed", "type": "beach", "duration_hours": 4, "best_time": "morning", "price_level": "low", "tags": ["diving", "black sand", "snorkeling"]},
+  {"id": 14, "name": "Sekumpul Waterfall", "area": "Munduk", "type": "nature", "duration_hours": 4, "best_time": "morning", "price_level": "medium", "tags": ["waterfall", "adventure", "nature"]},
+  {"id": 15, "name": "Pura Ulun Danu Bratan", "area": "Bedugul", "type": "temple", "duration_hours": 2, "best_time": "morning", "price_level": "medium", "tags": ["lake", "temple", "flowers"]},
+  {"id": 16, "name": "Jimbaran Bay", "area": "Jimbaran", "type": "beach", "duration_hours": 3, "best_time": "evening", "price_level": "high", "tags": ["dinner", "seafood", "sunset"]},
+  {"id": 17, "name": "Campuhan Ridge Walk", "area": "Ubud", "type": "nature", "duration_hours": 2, "best_time": "morning", "price_level": "low", "tags": ["walk", "views", "peace"]},
+  {"id": 18, "name": "Tegenungan Waterfall", "area": "Gianyar", "type": "nature", "duration_hours": 2, "best_time": "afternoon", "price_level": "low", "tags": ["waterfall", "swimming", "touristy"]},
+  {"id": 19, "name": "Sidemen Valley", "area": "Karangasem", "type": "nature", "duration_hours": 5, "best_time": "morning", "price_level": "medium", "tags": ["rice fields", "trekking", "authentic"]},
+  {"id": 20, "name": "Pet Nirvana Bali", "area": "Kuta", "type": "fun", "duration_hours": 3, "best_time": "morning", "price_level": "medium", "tags": ["pet", "relax", "food"]},
+  {"id": 21, "name": "Padang Padang Beach", "area": "Uluwatu", "type": "beach", "duration_hours": 3, "best_time": "afternoon", "price_level": "low", "tags": ["beach", "cove", "surfing"]}
+]
