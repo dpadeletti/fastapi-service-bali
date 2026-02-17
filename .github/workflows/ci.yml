@@ -16,7 +16,8 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        # Immagine ufficiale ottimizzata per pgvector
+        image: ankane/pgvector:v0.5.1
         env:
           POSTGRES_USER: bali
           POSTGRES_PASSWORD: bali
@@ -32,6 +33,8 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://bali:bali@localhost:5432/bali
       PYTHONPATH: .
+      # Aggiungiamo questa per segnalare al codice che siamo in CI
+      TESTING: "true"
 
     steps:
       - name: Checkout

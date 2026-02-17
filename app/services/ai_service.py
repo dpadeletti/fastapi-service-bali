@@ -1,3 +1,4 @@
+import os
 import requests
 from app.db.models.place import PlaceDB
 
@@ -9,6 +10,11 @@ class AIService:
         print(f"🤖 AI Service caricato con Ollama (Modello: {self.model})")
 
     def get_embedding(self, text: str) -> list[float]:
+        # AGGIUNGI QUESTO CONTROLLO PER LA CI
+        if os.getenv("TESTING") == "true":
+            # Restituiamo un vettore di 768 zeri per far passare i test senza Ollama
+            return [0.0] * 768
+
         try:
             payload = {
                 "model": self.model,
