@@ -8,7 +8,6 @@ Create Date: 2026-02-16 15:44:18.241153
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 import pgvector
 
 
