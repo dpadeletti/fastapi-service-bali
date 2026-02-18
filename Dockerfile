@@ -26,4 +26,6 @@ COPY alembic ./alembic
 EXPOSE 8000
 
 # Avvio "prod-like" (niente reload)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+#CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Avvio con migrazioni automatiche
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
