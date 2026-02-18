@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia il codice e i dati
 COPY app ./app
+COPY static ./static
 COPY scripts ./scripts
 COPY data ./data
 COPY pytest.ini ./
