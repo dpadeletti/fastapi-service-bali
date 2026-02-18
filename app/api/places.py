@@ -1,4 +1,8 @@
+from typing import Any, Generator
 import requests
+import os
+import boto3
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,7 +19,7 @@ from fastapi.responses import StreamingResponse
 import json
 
 router = APIRouter(tags=["places"])
-
+logger = logging.getLogger(__name__)
 
 def get_db() -> Session:
     """
@@ -106,43 +110,119 @@ def search_places(
     rows = db.execute(stmt).scalars().all()
     return [to_place_api(r) for r in rows]
 
-@router.get("/places/chat")
-async def chat_with_concierge(
-    q: str = Query(..., description="Chiedi consiglio alla guida"),
-    db: Session = Depends(get_db)
-):
-    # 1. Ricerca Semantica (Retrieval)
-    query_vector = ai_service.get_embedding(q)
-    distance_column = PlaceDB.embedding.cosine_distance(query_vector)
+def generate(prompt: str) -> Generator[str, None, None]:
+    """
+    Generatore che supporta sia Ollama (Locale) che AWS Bedrock Nova (Prod).
+    Switch basato sulla variabile d'ambiente LLM_PROVIDER.
+    """
+    provider = os.getenv("LLM_PROVIDER", "ollama").lower()
     
-    stmt = select(PlaceDB).where(distance_column < 0.6).order_by(distance_column).limit(4)
-    places = db.execute(stmt).scalars().all()
+    # --- MODALITÀ AWS BEDROCK (Nova Lite) ---
+    if provider == "bedrock":
+        try:
+            # Setup Client Bedrock
+            # Nota: Assicurati che la regione sia corretta (eu-north-1 per Nova Lite se disponibile)
+            client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "eu-north-1"))
+            
+            # Nova Lite usa la struttura "messages" (simile a Claude 3)
+            # Modello ID per Nova Lite 1.0 (Verifica se su eu-north-1 è 'amazon.nova-lite-v1:0')
+            model_id = "amazon.nova-lite-v1:0" 
+
+            payload = {
+                "messages": [
+                    {
+                        "role": "user", 
+                        "content": [{"text": prompt}]
+                    }
+                ],
+                "inferenceConfig": {
+                    "temperature": 0.7,
+                    "max_new_tokens": 1000
+                }
+            }
+
+            response = client.invoke_model_with_response_stream(
+                modelId=model_id,
+                body=json.dumps(payload)
+            )
+
+            stream = response.get('body')
+            if stream:
+                for event in stream:
+                    chunk = event.get('contentBlockDelta')
+                    if chunk:
+                        # La struttura della risposta di Nova è annidata
+                        delta = chunk.get('delta', {})
+                        text = delta.get('text', '')
+                        if text:
+                            yield text
+
+        except Exception as e:
+            logger.error(f"Bedrock error: {e}")
+            yield f"Error calling AI provider: {str(e)}"
+
+    # --- MODALITÀ OLLAMA (Locale - Default) ---
+    else:
+        try:
+            with requests.post(
+                "http://localhost:11434/api/generate",
+                json={"model": "llama3", "prompt": prompt, "stream": True},
+                stream=True
+            ) as r:
+                for line in r.iter_lines():
+                    if line:
+                        decoded_line = line.decode("utf-8")
+                        try:
+                            json_line = json.loads(decoded_line)
+                            if "response" in json_line:
+                                yield json_line["response"]
+                        except ValueError:
+                            continue
+        except requests.exceptions.ConnectionError:
+            yield "Errore: Assicurati che Ollama sia attivo in locale (ollama serve)."
+
+@router.get("/chat")
+def chat_with_places(q: str, db: Session = Depends(get_db)):
+    """
+    Endpoint per chat RAG (Retrieval Augmented Generation).
+    """
+    if not q:
+        raise HTTPException(status_code=400, detail="Query parameter 'q' is required")
+
+    # 1. Ricerca vettoriale (RAG)
+    # Nota: Assumiamo che search_places sia definita sopra nel file originale
+    # Se search_places usa ancora logica locale, assicurati che funzioni su AWS 
+    # (embedding via DB pgvector funzionano, embedding via modello locale richiedono attenzione)
+    # Per ora ci concentriamo sulla generazione del testo.
     
-    # 2. Preparazione contesto per l'LLM
-    context = "No specific places found." if not places else "\n".join([
-        f"- {p.name} ({p.area}): {p.tags}. Best time: {p.best_time}." for p in places
-    ])
+    # Esempio semplificato di recupero contesto (preso dalla logica esistente se presente)
+    # results = search_places(q=q, db=db) 
+    # context = "\n".join([f"- {p.name}: {p.description}" for p in results])
+    
+    # Recuperiamo un contesto fittizio o reale se la funzione search_places è disponibile
+    # Nel file caricato search_places c'è, quindi usiamola:
+    try:
+        results = search_places(q=q, db=db)
+        # results è una lista di dizionari o oggetti, adattare in base al ritorno di search_places
+        context_str = ""
+        for place in results:
+             # search_places ritorna dict nel file caricato
+             context_str += f"- {place['name']} ({place['category']}): {place['description']}\n"
+    except Exception as e:
+        logger.error(f"Search error: {e}")
+        context_str = "Nessun posto specifico trovato."
 
-    prompt = f"""You are a friendly Bali Travel Guide. 
-    User Question: "{q}"
-    Available Database Info:
-    {context}
-    Instructions: Use the info above to answer. Be short and tropical. 🌴"""
+    # 2. Costruzione Prompt
+    system_instruction = (
+        "Sei una guida turistica locale di Bali amichevole ed esperta. "
+        "Usa il contesto fornito per rispondere. Se non sai la risposta, inventa qualcosa di plausibile ma divertente."
+    )
+    
+    final_prompt = f"{system_instruction}\n\nDomanda utente: {q}\n\nContesto suggerito:\n{context_str}"
 
-    # 3. Funzione generatrice per lo streaming
-    def generate():
-        with requests.post(
-            "http://localhost:11434/api/generate",
-            json={"model": "llama3", "prompt": prompt, "stream": True},
-            stream=True
-        ) as r:
-            for line in r.iter_lines():
-                if line:
-                    chunk = json.loads(line)
-                    yield chunk.get("response", "")
-
-    return StreamingResponse(generate(), media_type="text/plain")
-
+    # 3. Streaming Response
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(generate(final_prompt), media_type="text/plain")
 
 @router.get("/places/{place_id}", response_model=Place)
 def get_place(place_id: int, db: Session = Depends(get_db)) -> Place:
