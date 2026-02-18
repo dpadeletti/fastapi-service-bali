@@ -29,6 +29,8 @@ resource "aws_db_instance" "postgres" {
 
 resource "aws_secretsmanager_secret" "app" {
   name = "${var.project_name}/${var.env}/app"
+  # Impostando a 0, AWS elimina il segreto IMMEDIATAMENTE al terraform destroy
+  recovery_window_in_days = 0
 }
 
 resource "aws_secretsmanager_secret_version" "app" {
