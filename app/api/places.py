@@ -53,7 +53,7 @@ def to_place_api(row: PlaceDB) -> Place:
         }
     )
 
-@router.get("places/chat")
+@router.get("/places/chat")
 def chat_with_places(q: str, db: Session = Depends(get_db)):
     """
     Endpoint per chat RAG (Retrieval Augmented Generation).
