@@ -25,7 +25,7 @@ class AIService:
             payload = {"model": self.model_ollama, "prompt": text}
             response = requests.post(url, json=payload, timeout=2)
             return response.json()["embedding"]
-        except:
+        except Exception:
             return [0.0] * 768 # Fallback di sicurezza
 
     def generate_chat_response(self, prompt: str):
