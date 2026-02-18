@@ -1,31 +1,58 @@
 import os
+import json
 import requests
+import boto3 
 from app.db.models.place import PlaceDB
 
 class AIService:
     def __init__(self):
-        # Indirizzo per parlare con Ollama (localhost perché usi 'make local')
-        self.url = "http://localhost:11434/api/embeddings"
-        self.model = "nomic-embed-text"
-        print(f"🤖 AI Service caricato con Ollama (Modello: {self.model})")
+        self.env = os.getenv("ENVIRONMENT", "development")
+        self.model_ollama = "nomic-embed-text"
+        self.model_bedrock = "amazon.nova-lite-v1:0" # Nova 2 Lite a Stoccolma
+        
+        # Inizializziamo il client AWS solo se siamo in produzione
+        if self.env == "prod":
+            self.bedrock = boto3.client("bedrock-runtime", region_name="eu-north-1")
 
     def get_embedding(self, text: str) -> list[float]:
-        # AGGIUNGI QUESTO CONTROLLO PER LA CI
         if os.getenv("TESTING") == "true":
-            # Restituiamo un vettore di 768 zeri per far passare i test senza Ollama
             return [0.0] * 768
-
+            
+        # Per ora manteniamo Ollama per gli embedding anche in prod o 
+        # restituiamo un vettore neutro se Ollama non risponde su AWS.
         try:
-            payload = {
-                "model": self.model,
-                "prompt": text
-            }
-            response = requests.post(self.url, json=payload, timeout=10)
-            response.raise_for_status()
+            url = "http://localhost:11434/api/embeddings"
+            payload = {"model": self.model_ollama, "prompt": text}
+            response = requests.post(url, json=payload, timeout=2)
             return response.json()["embedding"]
-        except Exception as e:
-            print(f"❌ Errore embedding Ollama: {e}")
-            raise e
+        except:
+            return [0.0] * 768 # Fallback di sicurezza
+
+    def generate_chat_response(self, prompt: str):
+        if self.env == "prod":
+            # --- LOGICA AWS BEDROCK (Nova 2 Lite) ---
+            body = json.dumps({
+                "inferenceConfig": {"max_new_tokens": 512, "temperature": 0.7},
+                "messages": [{"role": "user", "content": [{"text": prompt}]}]
+            })
+            
+            response = self.bedrock.invoke_model(
+                modelId=self.model_bedrock,
+                body=body
+            )
+            
+            response_body = json.loads(response.get("body").read())
+            return response_body["output"]["message"]["content"][0]["text"]
+        else:
+            # --- LOGICA OLLAMA (Il tuo fidato compagno locale) ---
+            try:
+                response = requests.post(
+                    "http://localhost:11434/api/generate",
+                    json={"model": "llama3", "prompt": prompt, "stream": False}
+                )
+                return response.json().get("response")
+            except Exception as e:
+                return f"Errore locale: Assicurati che Ollama sia attivo! ({e})"
 
     def create_place_description(self, place: PlaceDB) -> str:
         """

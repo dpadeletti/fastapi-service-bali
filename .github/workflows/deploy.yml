@@ -19,6 +19,7 @@ env:
   ECS_SERVICE: bali-dev-api
   CONTAINER_NAME: api
   DEPLOY_ROLE_ARN: arn:aws:iam::216571348735:role/github-actions-bali-api-deploy
+  ENVIRONMENT: prod
 
 jobs:
   deploy:
