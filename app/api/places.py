@@ -55,45 +55,26 @@ def to_place_api(row: PlaceDB) -> Place:
 
 @router.get("/places/chat")
 def chat_with_places(q: str, db: Session = Depends(get_db)):
-    """
-    Endpoint per chat RAG (Retrieval Augmented Generation).
-    """
     if not q:
         raise HTTPException(status_code=400, detail="Query parameter 'q' is required")
 
-    # 1. Ricerca vettoriale (RAG)
-    # Nota: Assumiamo che search_places sia definita sopra nel file originale
-    # Se search_places usa ancora logica locale, assicurati che funzioni su AWS 
-    # (embedding via DB pgvector funzionano, embedding via modello locale richiedono attenzione)
-    # Per ora ci concentriamo sulla generazione del testo.
-    
-    # Esempio semplificato di recupero contesto (preso dalla logica esistente se presente)
-    # results = search_places(q=q, db=db) 
-    # context = "\n".join([f"- {p.name}: {p.description}" for p in results])
-    
-    # Recuperiamo un contesto fittizio o reale se la funzione search_places è disponibile
-    # Nel file caricato search_places c'è, quindi usiamola:
     try:
         results = search_places(q=q, db=db)
-        # results è una lista di dizionari o oggetti, adattare in base al ritorno di search_places
         context_str = ""
         for place in results:
-             # search_places ritorna dict nel file caricato
-             context_str += f"- {place['name']} ({place['category']}): {place['description']}\n"
+             # CORREZIONE: Usa .name e .area (che esistono nel modello Place)
+             context_str += f"- {place.name} (Area: {place.area})\n"
     except Exception as e:
         logger.error(f"Search error: {e}")
         context_str = "Nessun posto specifico trovato."
 
-    # 2. Costruzione Prompt
     system_instruction = (
         "Sei una guida turistica locale di Bali amichevole ed esperta. "
-        "Usa il contesto fornito per rispondere. Se non sai la risposta, inventa qualcosa di plausibile ma divertente."
+        "Usa il contesto fornito per rispondere."
     )
     
     final_prompt = f"{system_instruction}\n\nDomanda utente: {q}\n\nContesto suggerito:\n{context_str}"
 
-    # 3. Streaming Response
-    from fastapi.responses import StreamingResponse
     return StreamingResponse(generate(final_prompt), media_type="text/plain")
 
 
@@ -140,12 +121,12 @@ def search_places(
 ) -> list[Place]:
     query_vector = ai_service.get_embedding(q)
     
-    # Calcoliamo la distanza
+    # CORREZIONE: Assicurati che si chiami .embedding (singolare) come nel modello sopra
     distance_column = PlaceDB.embedding.cosine_distance(query_vector)
     
     stmt = (
         select(PlaceDB)
-        .where(distance_column < 0.4) # <--- SOGLIA: ignora tutto ciò che è troppo diverso
+        .where(distance_column < 0.6) # Soglia un po' più permissiva
         .order_by(distance_column)
         .limit(limit)
     )
