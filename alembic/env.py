@@ -58,10 +58,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online():
-    # Estrae la configurazione come dizionario standard
     configuration = config.get_section(config.config_ini_section)
-    
-    # Bypass diretto: niente ConfigParser, niente errori di interpolazione!
     configuration['sqlalchemy.url'] = str(settings.database_url)
     
     connectable = engine_from_config(
@@ -73,7 +70,8 @@ def run_migrations_online():
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
-            target_metadata=target_metadata
+            target_metadata=target_metadata,
+            transaction_per_migration=True  # ← aggiungi questa riga
         )
 
         with context.begin_transaction():
