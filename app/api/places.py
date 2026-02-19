@@ -59,7 +59,7 @@ def chat_with_places(q: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Query parameter 'q' is required")
 
     try:
-        results = search_places(q=q, db=db)
+        results = search_places(q=q, limit=3, db=db)
         context_str = ""
         for place in results:
              # CORREZIONE: Usa .name e .area (che esistono nel modello Place)
