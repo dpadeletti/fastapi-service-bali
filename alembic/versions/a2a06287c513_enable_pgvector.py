@@ -6,6 +6,7 @@ Create Date: 2026-02-16 14:40:35.091071
 
 """
 from typing import Sequence, Union
+import sqlalchemy as sa
 from alembic import op
 
 revision: str = 'a2a06287c513'
@@ -15,14 +16,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    connection = op.get_bind()
+    connection = connection.execution_options(isolation_level="AUTOCOMMIT")
     try:
-        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        connection.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
     except Exception:
         pass  # pgvector non disponibile su questo RDS, skip
 
 
 def downgrade() -> None:
+    connection = op.get_bind()
+    connection = connection.execution_options(isolation_level="AUTOCOMMIT")
     try:
-        op.execute("DROP EXTENSION IF EXISTS vector")
+        connection.execute(sa.text("DROP EXTENSION IF EXISTS vector"))
     except Exception:
         pass
