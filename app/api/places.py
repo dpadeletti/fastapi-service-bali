@@ -135,29 +135,16 @@ def search_places(
     return [to_place_api(r) for r in rows]
 
 def generate(prompt: str) -> Generator[str, None, None]:
-    """
-    Generatore che supporta sia Ollama (Locale) che AWS Bedrock Nova (Prod).
-    Switch basato sulla variabile d'ambiente LLM_PROVIDER.
-    """
     provider = os.getenv("LLM_PROVIDER", "ollama").lower()
     
-    # --- MODALITÀ AWS BEDROCK (Nova Lite) ---
     if provider == "bedrock":
         try:
-            # Setup Client Bedrock
-            # Nota: Assicurati che la regione sia corretta (eu-north-1 per Nova Lite se disponibile)
             client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "eu-north-1"))
-            
-            # Nova Lite usa la struttura "messages" (simile a Claude 3)
-            # Modello ID per Nova Lite 1.0 (Verifica se su eu-north-1 è 'amazon.nova-lite-v1:0')
-            model_id = "amazon.nova-lite-v1:0" 
+            model_id = "amazon.nova-lite-v1:0"
 
             payload = {
                 "messages": [
-                    {
-                        "role": "user", 
-                        "content": [{"text": prompt}]
-                    }
+                    {"role": "user", "content": [{"text": prompt}]}
                 ],
                 "inferenceConfig": {
                     "temperature": 0.7,
@@ -170,14 +157,13 @@ def generate(prompt: str) -> Generator[str, None, None]:
                 body=json.dumps(payload)
             )
 
-            stream = response.get('body')
+            stream = response.get("body")
             if stream:
                 for event in stream:
-                    chunk = event.get('contentBlockDelta')
-                    if chunk:
-                        # La struttura della risposta di Nova è annidata
-                        delta = chunk.get('delta', {})
-                        text = delta.get('text', '')
+                    chunk_bytes = event.get("chunk", {}).get("bytes", b"")
+                    if chunk_bytes:
+                        parsed = json.loads(chunk_bytes)
+                        text = parsed.get("contentBlockDelta", {}).get("delta", {}).get("text", "")
                         if text:
                             yield text
 
@@ -185,7 +171,6 @@ def generate(prompt: str) -> Generator[str, None, None]:
             logger.error(f"Bedrock error: {e}")
             yield f"Error calling AI provider: {str(e)}"
 
-    # --- MODALITÀ OLLAMA (Locale - Default) ---
     else:
         try:
             with requests.post(
