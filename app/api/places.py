@@ -157,8 +157,8 @@ def chat_with_places(
         )
     else:
         context_block = (
-            f"No specific places were found in our database for this query. "
-            f"Answer based on your general knowledge of Bali, being clear it is general advice."
+            "No specific places were found in our database for this query. "
+            "Answer based on your general knowledge of Bali, being clear it is general advice."
         )
 
     final_prompt = (
