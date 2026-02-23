@@ -6,14 +6,12 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Select, select
+from sqlalchemy import Select, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models.place import PlaceDB
 from app.db.session import SessionLocal
 from app.models.place import BestTime, Place, PlaceType
-
-from app.services.ai_service import ai_service
 
 from fastapi.responses import StreamingResponse
 import json
@@ -21,10 +19,10 @@ import json
 router = APIRouter(tags=["places"])
 logger = logging.getLogger(__name__)
 
+
 def get_db() -> Session:
     """
     Dependency FastAPI: apre una sessione DB per-request e la chiude a fine richiesta.
-    Pattern standard in team.
     """
     db = SessionLocal()
     try:
@@ -36,10 +34,9 @@ def get_db() -> Session:
 def to_place_api(row: PlaceDB) -> Place:
     """
     Mappa i dati dal modello DB al modello API.
-    Gestisce la deserializzazione dei tag: converte la stringa CSV salvata nel DB 
-    (es. 'tag1,tag2') in una lista Python pulita (es. ['tag1', 'tag2']).
+    Converte la stringa CSV dei tag in lista Python.
     """
-    tags = [t for t in (row.tags or "").split(",") if t]  # "a,b,c" -> ["a","b","c"]
+    tags = [t for t in (row.tags or "").split(",") if t]
     return Place.model_validate(
         {
             "id": row.id,
@@ -53,6 +50,7 @@ def to_place_api(row: PlaceDB) -> Place:
         }
     )
 
+
 @router.get("/places/chat")
 def chat_with_places(q: str, db: Session = Depends(get_db)):
     if not q:
@@ -62,8 +60,7 @@ def chat_with_places(q: str, db: Session = Depends(get_db)):
         results = search_places(q=q, limit=3, db=db)
         context_str = ""
         for place in results:
-             # CORREZIONE: Usa .name e .area (che esistono nel modello Place)
-             context_str += f"- {place.name} (Area: {place.area})\n"
+            context_str += f"- {place.name} (Area: {place.area})\n"
     except Exception as e:
         logger.error(f"Search error: {e}")
         context_str = "Nessun posto specifico trovato."
@@ -72,7 +69,7 @@ def chat_with_places(q: str, db: Session = Depends(get_db)):
         "Sei una guida turistica locale di Bali amichevole ed esperta. "
         "Usa il contesto fornito per rispondere."
     )
-    
+
     final_prompt = f"{system_instruction}\n\nDomanda utente: {q}\n\nContesto suggerito:\n{context_str}"
 
     return StreamingResponse(generate(final_prompt), media_type="text/plain")
@@ -90,15 +87,10 @@ def list_places(
 ) -> list[Place]:
     """
     Ricerca filtrata dei luoghi d'interesse dal DB.
-    - area: Ricerca parziale case-insensitive (ILike).
-    - type/best_time: Filtri esatti basati su Enum.
-    - max_duration_hours: Filtro numerico (minore o uguale a).
-    Restituisce una lista di oggetti Place (modello API) filtrati.
     """
     stmt: Select = select(PlaceDB)
 
     if area:
-        # Case-insensitive match “pulito”
         stmt = stmt.where(PlaceDB.area.ilike(area.strip()))
 
     if type:
@@ -113,30 +105,36 @@ def list_places(
     rows = db.execute(stmt).scalars().all()
     return [to_place_api(r) for r in rows]
 
+
 @router.get("/places/search", response_model=list[Place])
 def search_places(
-    q: str = Query(..., description="Ricerca semantica"),
+    q: str = Query(..., description="Ricerca testuale su nome, area e tag"),
     limit: int = Query(default=3, ge=1, le=10),
     db: Session = Depends(get_db),
 ) -> list[Place]:
-    query_vector = ai_service.get_embedding(q)
-    
-    # CORREZIONE: Assicurati che si chiami .embedding (singolare) come nel modello sopra
-    distance_column = PlaceDB.embedding.cosine_distance(query_vector)
-    
+    """
+    Ricerca testuale semplice (ILIKE) su name, area e tags.
+    Sostituisce la ricerca semantica con pgvector (non supportato su questo RDS).
+    """
+    keyword = f"%{q.strip()}%"
     stmt = (
         select(PlaceDB)
-        .where(distance_column < 0.6) # Soglia un po' più permissiva
-        .order_by(distance_column)
+        .where(
+            or_(
+                PlaceDB.name.ilike(keyword),
+                PlaceDB.area.ilike(keyword),
+                PlaceDB.tags.ilike(keyword),
+            )
+        )
         .limit(limit)
     )
-    
     rows = db.execute(stmt).scalars().all()
     return [to_place_api(r) for r in rows]
 
+
 def generate(prompt: str) -> Generator[str, None, None]:
     provider = os.getenv("LLM_PROVIDER", "ollama").lower()
-    
+
     if provider == "bedrock":
         try:
             client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "eu-north-1"))
@@ -190,11 +188,11 @@ def generate(prompt: str) -> Generator[str, None, None]:
         except requests.exceptions.ConnectionError:
             yield "Errore: Assicurati che Ollama sia attivo in locale (ollama serve)."
 
+
 @router.get("/places/{place_id}", response_model=Place)
 def get_place(place_id: int, db: Session = Depends(get_db)) -> Place:
     """
     Recupera un luogo specifico dal DB tramite ID.
-    Se il luogo non esiste, restituisce un errore 404.
     """
     row = db.get(PlaceDB, place_id)
     if not row:

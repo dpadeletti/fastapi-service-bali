@@ -1,7 +1,7 @@
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
-from pgvector.sqlalchemy import Vector
 from app.db.base import Base
+
 
 class PlaceDB(Base):
     __tablename__ = "places"
@@ -14,4 +14,4 @@ class PlaceDB(Base):
     best_time: Mapped[str] = mapped_column(String, nullable=False)
     price_level: Mapped[str] = mapped_column(String, nullable=False)
     tags: Mapped[str] = mapped_column(String, nullable=False, default="")
-    embedding: Mapped[Vector] = mapped_column(Vector(768), nullable=True)
+    # embedding rimosso: pgvector non supportato su questo RDS
