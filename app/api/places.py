@@ -129,12 +129,26 @@ def chat_with_places(
         logger.error(f"Search error: {e}")
         context_str = "No specific places found in the database for this query."
 
+    logger.info(f"[chat] query='{q}' lang={lang} context={context_str!r}")
+
+    if results:
+        context_block = (
+            f"You have access to this list of real places in Bali from our database:\n"
+            f"{context_str}\n\n"
+            f"STRICT RULE: Only recommend places from the list above. "
+            f"Do NOT invent, add, or mention any place not in this list."
+        )
+    else:
+        context_block = (
+            f"No specific places were found in our database for this query. "
+            f"Answer based on your general knowledge of Bali, being clear it is general advice."
+        )
+
     final_prompt = (
         f"You are a friendly and expert local travel guide for Bali.\n\n"
         f"LANGUAGE INSTRUCTION: You MUST reply in {lang}. This is mandatory.\n\n"
+        f"{context_block}\n\n"
         f"User question: {q}\n\n"
-        f"Relevant places from our database:\n{context_str}\n\n"
-        f"Answer the user's question using the places above when relevant. "
         f"Reply in {lang}."
     )
 
