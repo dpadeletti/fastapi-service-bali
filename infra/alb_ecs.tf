@@ -61,6 +61,12 @@ resource "aws_ecs_task_definition" "api" {
         { containerPort = var.container_port, protocol = "tcp" }
       ]
 
+      environment = [
+        { name = "LLM_PROVIDER", value = "bedrock" },
+        { name = "AWS_REGION",   value = var.aws_region },
+        { name = "ENVIRONMENT",  value = var.env }
+      ]
+
       secrets = [
         {
           name      = "DATABASE_URL"
@@ -105,4 +111,3 @@ resource "aws_ecs_service" "api" {
 output "alb_dns_name" {
   value = aws_lb.api.dns_name
 }
-

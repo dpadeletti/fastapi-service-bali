@@ -109,6 +109,58 @@ jobs:
           container-name: ${{ env.CONTAINER_NAME }}
           image: ${{ env.IMAGE_URI }}
 
+      - name: Get Network Configuration
+        run: |
+          NETWORK_CONFIG=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.ECS_SERVICE }} \
+            --query "services[0].networkConfiguration" \
+            --output json)
+          echo "NETWORK_CONFIG=$(echo $NETWORK_CONFIG | tr -d '\n')" >> $GITHUB_ENV
+
+      - name: Register new Task Definition (for Migration)
+        run: |
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://${{ steps.render.outputs.task-definition }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "MIGRATION_TASK_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
+
+      - name: Run DB Migrations (One-off Task)
+        run: |
+          echo "Running Alembic migrations on ECS..."
+          TASK_ARN=$(aws ecs run-task \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --task-definition ${{ env.MIGRATION_TASK_ARN }} \
+            --launch-type FARGATE \
+            --network-configuration '${{ env.NETWORK_CONFIG }}' \
+            --overrides '{"containerOverrides": [{"name": "${{ env.CONTAINER_NAME }}", "command": ["sh", "-c", "alembic upgrade head && PYTHONPATH=. python scripts/seed_db.py"]}]}' \
+            --count 1 \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "Migration task ARN: $TASK_ARN"
+          echo "MIGRATION_TASK_ARN_RUN=$TASK_ARN" >> $GITHUB_ENV
+
+      - name: Wait for migrations to complete
+        run: |
+          echo "Waiting for migration task to stop..."
+          aws ecs wait tasks-stopped \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks "$MIGRATION_TASK_ARN_RUN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks "$MIGRATION_TASK_ARN_RUN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          echo "Migration exit code: $EXIT_CODE"
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "❌ Migration failed with exit code $EXIT_CODE — deploy aborted."
+            exit 1
+          fi
+          echo "✅ Migrations completed successfully."
+
       - name: Deploy to ECS service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
