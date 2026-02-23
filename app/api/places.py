@@ -66,11 +66,12 @@ def chat_with_places(q: str, db: Session = Depends(get_db)):
         context_str = "Nessun posto specifico trovato."
 
     system_instruction = (
-        "Sei una guida turistica locale di Bali amichevole ed esperta. "
-        "Usa il contesto fornito per rispondere."
+        "You are a friendly and expert local travel guide for Bali. "
+        "Always respond in the same language the user is writing in. "
+        "Use the provided context to give accurate and helpful answers."
     )
 
-    final_prompt = f"{system_instruction}\n\nDomanda utente: {q}\n\nContesto suggerito:\n{context_str}"
+    final_prompt = f"{system_instruction}\n\nUser question: {q}\n\nSuggested context:\n{context_str}"
 
     return StreamingResponse(generate(final_prompt), media_type="text/plain")
 
