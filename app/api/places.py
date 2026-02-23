@@ -94,16 +94,33 @@ def to_place_api(row: PlaceDB) -> Place:
     )
 
 
+STOP_WORDS = {
+    "a", "an", "the", "in", "on", "at", "to", "for", "of", "and", "or",
+    "but", "is", "are", "was", "were", "be", "been", "being", "have",
+    "has", "had", "do", "does", "did", "will", "would", "could", "should",
+    "may", "might", "shall", "can", "i", "you", "he", "she", "we", "they",
+    "my", "your", "his", "her", "our", "their", "it", "its", "this", "that",
+    "with", "from", "by", "about", "some", "any", "like", "want", "would",
+    "nice", "good", "great", "best", "enjoy", "place", "places", "go",
+    "there", "here", "where", "what", "how", "when", "why", "who",
+    "suggestion", "suggestions", "recommend", "recommendation",
+}
+
+
 def expand_keywords(q: str) -> list[str]:
     """
-    Splits query into words and expands each with synonyms.
-    Returns a flat deduplicated list of keywords to search for.
+    Splits query into words, removes stop words, expands each with synonyms.
+    Returns a flat deduplicated list of meaningful keywords to search for.
     """
     words = q.lower().split()
     keywords: list[str] = []
     for word in words:
-        keywords.append(word)
-        keywords.extend(SYNONYMS.get(word, []))
+        # Strip punctuation
+        clean = word.strip(".,!?;:'\"")
+        if clean in STOP_WORDS or len(clean) < 3:
+            continue
+        keywords.append(clean)
+        keywords.extend(SYNONYMS.get(clean, []))
     return list(dict.fromkeys(keywords))  # deduplicate preserving order
 
 
