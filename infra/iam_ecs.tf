@@ -41,6 +41,21 @@ resource "aws_iam_role" "ecs_task" {
   assume_role_policy = data.aws_iam_policy_document.ecs_task_assume.json
 }
 
+resource "aws_iam_role_policy" "ecs_task_bedrock" {
+  name = "${var.project_name}-${var.env}-ecs-task-bedrock"
+  role = aws_iam_role.ecs_task.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # ---------------------------------------------------------------------------
 # GitHub Actions deploy role (OIDC)
 # ---------------------------------------------------------------------------
