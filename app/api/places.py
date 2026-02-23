@@ -67,11 +67,17 @@ def chat_with_places(q: str, db: Session = Depends(get_db)):
 
     system_instruction = (
         "You are a friendly and expert local travel guide for Bali. "
-        "Always respond in the same language the user is writing in. "
         "Use the provided context to give accurate and helpful answers."
     )
 
-    final_prompt = f"{system_instruction}\n\nUser question: {q}\n\nSuggested context:\n{context_str}"
+    final_prompt = (
+        f"{system_instruction}\n\n"
+        f"IMPORTANT: Detect the language of the user question below and reply in that EXACT same language. "
+        f"Do not switch language under any circumstance.\n\n"
+        f"User question: {q}\n\n"
+        f"Suggested context:\n{context_str}\n\n"
+        f"Remember: your reply must be in the same language as the user question above."
+    )
 
     return StreamingResponse(generate(final_prompt), media_type="text/plain")
 
