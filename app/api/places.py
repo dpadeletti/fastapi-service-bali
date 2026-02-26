@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.db.models.place import PlaceDB
 from app.db.session import SessionLocal
 from app.models.place import BestTime, Place, PlaceType
+from app.services.ai_service import ai_service
 
 from fastapi.responses import StreamingResponse
 import json
@@ -19,7 +20,14 @@ import json
 router = APIRouter(tags=["places"])
 logger = logging.getLogger(__name__)
 
-# Synonym map: user terms → DB tag keywords
+# Controlla se pgvector è disponibile (Aurora) o no (RDS standard / locale)
+try:
+    from pgvector.sqlalchemy import Vector  # noqa: F401
+    _PGVECTOR = True
+except ImportError:
+    _PGVECTOR = False
+
+# Synonym map: fallback per quando pgvector non è disponibile
 SYNONYMS: dict[str, list[str]] = {
     "dog":       ["pet"],
     "dogs":      ["pet"],
@@ -28,45 +36,55 @@ SYNONYMS: dict[str, list[str]] = {
     "pet":       ["pet"],
     "cafe":      ["food", "relax"],
     "caffè":     ["food", "relax"],
-    "coffee":    ["food", "relax"],
+    "coffee":    ["coffee", "cafe"],
     "food":      ["food", "seafood"],
     "eat":       ["food", "seafood"],
     "dinner":    ["dinner", "seafood", "food"],
     "lunch":     ["food", "seafood"],
     "relax":     ["relax", "peace"],
     "swim":      ["swimming"],
-    "swimming":  ["swimming"],
-    "dive":      ["diving"],
     "diving":    ["diving"],
     "snorkel":   ["snorkeling"],
     "hike":      ["hiking", "trekking"],
-    "hiking":    ["hiking", "trekking"],
     "trek":      ["trekking", "adventure"],
     "waterfall": ["waterfall"],
     "volcano":   ["volcano"],
     "sunrise":   ["sunrise"],
     "sunset":    ["sunset"],
     "surf":      ["surf", "surfing"],
-    "surfing":   ["surfing", "surf"],
     "temple":    ["temple", "spiritual"],
     "island":    ["island", "boat"],
     "beach":     ["beach"],
     "monkey":    ["monkeys"],
-    "monkeys":   ["monkeys"],
     "rice":      ["rice fields"],
-    "photo":     ["photo-spot", "instagram", "views"],
-    "instagram": ["instagram", "photo-spot"],
-    "view":      ["views", "viewpoints"],
-    "views":     ["views", "viewpoints"],
-    "garden":    ["garden", "flowers"],
-    "spiritual": ["spiritual", "temple"],
-    "authentic": ["authentic"],
+    "photo":     ["photo-spot", "instagram"],
+    "yoga":      ["yoga", "wellness"],
+    "spa":       ["spa", "massage"],
+    "wellness":  ["wellness", "healing"],
+    "family":    ["family", "kids"],
+    "kids":      ["kids", "family"],
+    "romantic":  ["romantic", "couples"],
+    "couples":   ["romantic", "couples"],
+    "cheap":     ["low"],
+    "budget":    ["low"],
+    "luxury":    ["high", "upscale"],
+    "upscale":   ["upscale", "high"],
+    "adventure": ["adventure", "active"],
+    "quiet":     ["peaceful", "quiet", "secluded"],
+    "hidden":    ["hidden gem", "secluded"],
     "jungle":    ["jungle", "forest"],
-    "forest":    ["forest", "jungle"],
     "lake":      ["lake"],
-    "mountain":  ["mountains", "volcano"],
     "night":     ["nightlife"],
-    "nightlife": ["nightlife"],
+}
+
+STOP_WORDS = {
+    "a", "an", "the", "in", "on", "at", "to", "for", "of", "and", "or",
+    "but", "is", "are", "was", "were", "be", "been", "have", "has", "had",
+    "do", "does", "did", "will", "would", "could", "should", "may", "might",
+    "i", "you", "he", "she", "we", "they", "my", "your", "its", "this", "that",
+    "with", "from", "by", "about", "some", "any", "like", "want", "enjoy",
+    "nice", "good", "great", "best", "place", "places", "go", "there", "where",
+    "suggestion", "suggestions", "recommend", "looking",
 }
 
 
@@ -80,48 +98,28 @@ def get_db() -> Session:
 
 def to_place_api(row: PlaceDB) -> Place:
     tags = [t for t in (row.tags or "").split(",") if t]
-    return Place.model_validate(
-        {
-            "id": row.id,
-            "name": row.name,
-            "area": row.area,
-            "type": row.type,
-            "duration_hours": row.duration_hours,
-            "best_time": row.best_time,
-            "price_level": row.price_level,
-            "tags": tags,
-        }
-    )
-
-
-STOP_WORDS = {
-    "a", "an", "the", "in", "on", "at", "to", "for", "of", "and", "or",
-    "but", "is", "are", "was", "were", "be", "been", "being", "have",
-    "has", "had", "do", "does", "did", "will", "would", "could", "should",
-    "may", "might", "shall", "can", "i", "you", "he", "she", "we", "they",
-    "my", "your", "his", "her", "our", "their", "it", "its", "this", "that",
-    "with", "from", "by", "about", "some", "any", "like", "want", "would",
-    "nice", "good", "great", "best", "enjoy", "place", "places", "go",
-    "there", "here", "where", "what", "how", "when", "why", "who",
-    "suggestion", "suggestions", "recommend", "recommendation",
-}
+    return Place.model_validate({
+        "id": row.id,
+        "name": row.name,
+        "area": row.area,
+        "type": row.type,
+        "duration_hours": row.duration_hours,
+        "best_time": row.best_time,
+        "price_level": row.price_level,
+        "tags": tags,
+    })
 
 
 def expand_keywords(q: str) -> list[str]:
-    """
-    Splits query into words, removes stop words, expands each with synonyms.
-    Returns a flat deduplicated list of meaningful keywords to search for.
-    """
     words = q.lower().split()
     keywords: list[str] = []
     for word in words:
-        # Strip punctuation
         clean = word.strip(".,!?;:'\"")
         if clean in STOP_WORDS or len(clean) < 3:
             continue
         keywords.append(clean)
         keywords.extend(SYNONYMS.get(clean, []))
-    return list(dict.fromkeys(keywords))  # deduplicate preserving order
+    return list(dict.fromkeys(keywords))
 
 
 @router.get("/places/chat")
@@ -134,21 +132,21 @@ def chat_with_places(
         raise HTTPException(status_code=400, detail="Query parameter 'q' is required")
 
     try:
-        results = _search_by_keywords(q=q, limit=5, db=db)
+        results = search_places(q=q, limit=5, db=db)
         if results:
             context_str = "\n".join(
                 f"- {p.name} (Area: {p.area}, Type: {p.type}, Tags: {', '.join(p.tags)})"
                 for p in results
             )
         else:
-            context_str = "No specific places found in the database for this query."
+            context_str = ""
     except Exception as e:
         logger.error(f"Search error: {e}")
-        context_str = "No specific places found in the database for this query."
+        context_str = ""
 
-    logger.info(f"[chat] query='{q}' lang={lang} context={context_str!r}")
+    logger.info(f"[chat] query='{q}' lang={lang} pgvector={_PGVECTOR} context={context_str!r}")
 
-    if results:
+    if context_str:
         context_block = (
             f"You have access to this list of real places in Bali from our database:\n"
             f"{context_str}\n\n"
@@ -172,32 +170,12 @@ def chat_with_places(
     return StreamingResponse(generate(final_prompt), media_type="text/plain")
 
 
-def _search_by_keywords(q: str, limit: int, db: Session) -> list[Place]:
-    """
-    Expanded keyword search: splits the query, applies synonyms,
-    and searches name + area + tags for any of the resulting keywords.
-    """
-    keywords = expand_keywords(q)
-    conditions = []
-    for kw in keywords:
-        pattern = f"%{kw}%"
-        conditions.append(PlaceDB.name.ilike(pattern))
-        conditions.append(PlaceDB.area.ilike(pattern))
-        conditions.append(PlaceDB.tags.ilike(pattern))
-
-    stmt = select(PlaceDB).where(or_(*conditions)).limit(limit)
-    rows = db.execute(stmt).scalars().all()
-    return [to_place_api(r) for r in rows]
-
-
 @router.get("/places", response_model=list[Place])
 def list_places(
-    area: Optional[str] = Query(default=None, description="Filter by area (e.g. Ubud)"),
-    type: Optional[PlaceType] = Query(default=None, description="Filter by place type"),
-    best_time: Optional[BestTime] = Query(default=None, description="Best time of day"),
-    max_duration_hours: Optional[int] = Query(
-        default=None, ge=1, le=24, description="Max duration in hours"
-    ),
+    area: Optional[str] = Query(default=None),
+    type: Optional[PlaceType] = Query(default=None),
+    best_time: Optional[BestTime] = Query(default=None),
+    max_duration_hours: Optional[int] = Query(default=None, ge=1, le=24),
     db: Session = Depends(get_db),
 ) -> list[Place]:
     stmt: Select = select(PlaceDB)
@@ -215,12 +193,48 @@ def list_places(
 
 @router.get("/places/search", response_model=list[Place])
 def search_places(
-    q: str = Query(..., description="Ricerca testuale su nome, area e tag"),
-    limit: int = Query(default=3, ge=1, le=10),
+    q: str = Query(..., description="Ricerca semantica o testuale"),
+    limit: int = Query(default=5, ge=1, le=20),
     db: Session = Depends(get_db),
 ) -> list[Place]:
-    """Ricerca testuale con espansione dei sinonimi."""
-    return _search_by_keywords(q=q, limit=limit, db=db)
+    """
+    Se pgvector è disponibile → ricerca semantica con cosine distance.
+    Altrimenti → ricerca testuale ILIKE con espansione sinonimi.
+    """
+    if _PGVECTOR and hasattr(PlaceDB, "embedding"):
+        return _semantic_search(q=q, limit=limit, db=db)
+    else:
+        return _keyword_search(q=q, limit=limit, db=db)
+
+
+def _semantic_search(q: str, limit: int, db: Session) -> list[Place]:
+    """Ricerca semantica via cosine distance su embedding pgvector."""
+    query_embedding = ai_service.get_embedding(q)
+    distance_col = PlaceDB.embedding.cosine_distance(query_embedding)
+    stmt = (
+        select(PlaceDB)
+        .where(PlaceDB.embedding.is_not(None))
+        .order_by(distance_col)
+        .limit(limit)
+    )
+    rows = db.execute(stmt).scalars().all()
+    return [to_place_api(r) for r in rows]
+
+
+def _keyword_search(q: str, limit: int, db: Session) -> list[Place]:
+    """Ricerca testuale ILIKE con espansione sinonimi — fallback senza pgvector."""
+    keywords = expand_keywords(q)
+    if not keywords:
+        return []
+    conditions = []
+    for kw in keywords:
+        pattern = f"%{kw}%"
+        conditions.append(PlaceDB.name.ilike(pattern))
+        conditions.append(PlaceDB.area.ilike(pattern))
+        conditions.append(PlaceDB.tags.ilike(pattern))
+    stmt = select(PlaceDB).where(or_(*conditions)).limit(limit)
+    rows = db.execute(stmt).scalars().all()
+    return [to_place_api(r) for r in rows]
 
 
 def generate(prompt: str) -> Generator[str, None, None]:
@@ -229,13 +243,12 @@ def generate(prompt: str) -> Generator[str, None, None]:
     if provider == "bedrock":
         try:
             client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "eu-north-1"))
-            model_id = "amazon.nova-lite-v1:0"
             payload = {
                 "messages": [{"role": "user", "content": [{"text": prompt}]}],
                 "inferenceConfig": {"temperature": 0.7, "max_new_tokens": 1000}
             }
             response = client.invoke_model_with_response_stream(
-                modelId=model_id, body=json.dumps(payload)
+                modelId="amazon.nova-lite-v1:0", body=json.dumps(payload)
             )
             stream = response.get("body")
             if stream:
