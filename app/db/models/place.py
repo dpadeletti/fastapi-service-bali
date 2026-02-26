@@ -22,4 +22,4 @@ class PlaceDB(Base):
     tags: Mapped[str] = mapped_column(String, nullable=False, default="")
 
     if _pgvector_available:
-        embedding: Mapped[Vector] = mapped_column(Vector(768), nullable=True)
+        embedding: Mapped[Vector] = mapped_column(Vector(1024), nullable=True)
