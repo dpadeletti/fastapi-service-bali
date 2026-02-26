@@ -8,25 +8,35 @@ logger = logging.getLogger(__name__)
 
 class AIService:
     def __init__(self):
-        self.env = os.getenv("ENVIRONMENT", "development")
         self.aws_region = os.getenv("AWS_REGION", "eu-north-1")
         self.model_bedrock = "amazon.nova-lite-v1:0"
         self.embedding_model = "amazon.titan-embed-text-v2:0"
+        # Crea sempre il client — boto3 usa le credenziali IAM del task role
+        self._bedrock = None
 
-        if self.env == "prod":
-            self.bedrock = boto3.client("bedrock-runtime", region_name=self.aws_region)
+    @property
+    def bedrock(self):
+        """Lazy init del client Bedrock — evita problemi di inizializzazione."""
+        if self._bedrock is None:
+            self._bedrock = boto3.client(
+                "bedrock-runtime",
+                region_name=os.getenv("AWS_REGION", "eu-north-1")
+            )
+        return self._bedrock
+
+    @property
+    def provider(self) -> str:
+        return os.getenv("LLM_PROVIDER", "ollama").lower()
 
     def get_embedding(self, text: str) -> list[float]:
         """
-        Genera un embedding vettoriale (768 dimensioni) per il testo dato.
-        - In produzione: AWS Bedrock Titan Embeddings v2
-        - In locale: vettore neutro (richiede pgvector e Ollama, skip per ora)
-        - In test: vettore zero
+        Genera un embedding vettoriale (768 dimensioni).
+        Usa Bedrock Titan Embeddings v2 se LLM_PROVIDER=bedrock, altrimenti vettore zero.
         """
         if os.getenv("TESTING") == "true":
             return [0.0] * 768
 
-        if self.env == "prod":
+        if self.provider == "bedrock":
             try:
                 response = self.bedrock.invoke_model(
                     modelId=self.embedding_model,
@@ -42,15 +52,10 @@ class AIService:
                 logger.error(f"Bedrock embedding error: {e}")
                 return [0.0] * 768
         else:
-            # Locale: vettore neutro — il seed locale non genera embedding reali
-            # Per embedding locali reali: installare Ollama + nomic-embed-text
+            logger.warning("LLM_PROVIDER != bedrock — returning zero embedding")
             return [0.0] * 768
 
     def create_place_description(self, place) -> str:
-        """
-        Crea una descrizione testuale ricca per generare un embedding preciso.
-        Più ricca è la descrizione, più accurata è la ricerca semantica.
-        """
         return (
             f"{place.name} is a {place.type} located in {place.area}, Bali. "
             f"Best visited in the {place.best_time}. "
@@ -61,7 +66,7 @@ class AIService:
 
     def generate_chat_response(self, prompt: str) -> str:
         """Risposta non-streaming — usata per testing o fallback."""
-        if self.env == "prod":
+        if self.provider == "bedrock":
             body = json.dumps({
                 "inferenceConfig": {"max_new_tokens": 512, "temperature": 0.7},
                 "messages": [{"role": "user", "content": [{"text": prompt}]}]

@@ -12,7 +12,7 @@ def test_embedding():
     embedding = ai_service.get_embedding(text)
     non_zero = sum(1 for v in embedding if v != 0.0)
     return {
-        "env": ai_service.env,
+        "provider": ai_service.provider,
         "text": text,
         "embedding_length": len(embedding),
         "non_zero_dimensions": non_zero,
