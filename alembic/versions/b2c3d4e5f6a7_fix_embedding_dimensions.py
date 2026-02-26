@@ -15,9 +15,12 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Titan Embeddings v2 restituisce 1024 dimensioni di default
+    # Prima azzera la colonna (i vecchi vettori 768-dim non sono compatibili con 1024)
+    op.execute("UPDATE places SET embedding = NULL")
+    # Poi altera il tipo
     op.execute("ALTER TABLE places ALTER COLUMN embedding TYPE vector(1024)")
 
 
 def downgrade() -> None:
+    op.execute("UPDATE places SET embedding = NULL")
     op.execute("ALTER TABLE places ALTER COLUMN embedding TYPE vector(768)")
