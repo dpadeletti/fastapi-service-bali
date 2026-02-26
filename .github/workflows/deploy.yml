@@ -7,6 +7,10 @@ on:
         description: Type DEPLOY to confirm
         required: true
         default: ""
+      reseed:
+        description: Force reseed DB with embeddings? (yes/no)
+        required: false
+        default: "no"
 
 permissions:
   id-token: write
@@ -118,7 +122,7 @@ jobs:
             --output json)
           echo "NETWORK_CONFIG=$(echo $NETWORK_CONFIG | tr -d '\n')" >> $GITHUB_ENV
 
-      - name: Register new Task Definition (for Migration)
+      - name: Register new Task Definition
         run: |
           TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://${{ steps.render.outputs.task-definition }} \
@@ -160,6 +164,37 @@ jobs:
             exit 1
           fi
           echo "✅ Migrations completed successfully."
+
+      - name: Force Reseed with Embeddings (optional)
+        if: ${{ github.event.inputs.reseed == 'yes' }}
+        run: |
+          echo "Force reseeding DB with Bedrock embeddings..."
+          TASK_ARN=$(aws ecs run-task \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --task-definition ${{ env.MIGRATION_TASK_ARN }} \
+            --launch-type FARGATE \
+            --network-configuration '${{ env.NETWORK_CONFIG }}' \
+            --overrides '{"containerOverrides": [{"name": "${{ env.CONTAINER_NAME }}", "command": ["sh", "-c", "PYTHONPATH=. python scripts/seed_db.py --force"], "environment": [{"name": "LLM_PROVIDER", "value": "bedrock"}, {"name": "AWS_REGION", "value": "eu-north-1"}, {"name": "ENVIRONMENT", "value": "prod"}]}]}' \
+            --count 1 \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "Reseed task ARN: $TASK_ARN"
+
+          aws ecs wait tasks-stopped \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "❌ Reseed failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+          echo "✅ Reseed completed successfully."
 
       - name: Deploy to ECS service
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
