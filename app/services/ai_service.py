@@ -41,9 +41,7 @@ class AIService:
                 response = self.bedrock.invoke_model(
                     modelId=self.embedding_model,
                     body=json.dumps({
-                        "inputText": text,
-                        "dimensions": 768,
-                        "normalize": True
+                        "inputText": text
                     })
                 )
                 body = json.loads(response["body"].read())

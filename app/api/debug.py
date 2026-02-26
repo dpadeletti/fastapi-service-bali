@@ -8,7 +8,6 @@ router = APIRouter(tags=["debug"])
 
 @router.get("/debug/embedding")
 def test_embedding():
-    """Testa Bedrock Titan Embeddings direttamente senza passare per ai_service."""
     region = os.getenv("AWS_REGION", "eu-north-1")
     provider = os.getenv("LLM_PROVIDER", "ollama")
 
@@ -17,9 +16,7 @@ def test_embedding():
         response = client.invoke_model(
             modelId="amazon.titan-embed-text-v2:0",
             body=json.dumps({
-                "inputText": "romantic dinner on the beach",
-                "dimensions": 768,
-                "normalize": True
+                "inputText": "romantic dinner on the beach"
             })
         )
         body = json.loads(response["body"].read())
@@ -38,8 +35,6 @@ def test_embedding():
         return {
             "provider": provider,
             "region": region,
-            "embedding_length": 0,
-            "non_zero_dimensions": 0,
             "bedrock_working": False,
             "error": str(e)
         }
