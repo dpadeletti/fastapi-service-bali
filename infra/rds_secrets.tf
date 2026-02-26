@@ -1,6 +1,6 @@
 resource "random_password" "db" {
   length  = 24
-  special = true
+  special = false
 }
 
 resource "aws_db_subnet_group" "db" {
@@ -8,9 +8,11 @@ resource "aws_db_subnet_group" "db" {
   subnet_ids = aws_subnet.private[*].id
 }
 
+# RDS PostgreSQL 15+ supporta pgvector come estensione nativa
 resource "aws_db_instance" "postgres" {
   identifier             = "${var.project_name}-${var.env}-db"
   engine                 = "postgres"
+  engine_version         = "15.10"
   instance_class         = var.db_instance_class
   allocated_storage      = 20
   db_subnet_group_name   = aws_db_subnet_group.db.name
@@ -20,16 +22,27 @@ resource "aws_db_instance" "postgres" {
   username = var.db_username
   password = random_password.db.result
 
+  # Abilita pgvector tramite parameter group
+  parameter_group_name = aws_db_parameter_group.postgres.name
+
   publicly_accessible = false
   skip_final_snapshot = true
-
-  # per starter: riduciamo “sorprese”
   deletion_protection = false
 }
 
+# Parameter group con pgvector abilitato
+resource "aws_db_parameter_group" "postgres" {
+  name   = "${var.project_name}-${var.env}-pg15"
+  family = "postgres15"
+
+  parameter {
+    name  = "shared_preload_libraries"
+    value = "pg_stat_statements"
+  }
+}
+
 resource "aws_secretsmanager_secret" "app" {
-  name = "${var.project_name}/${var.env}/app"
-  # Impostando a 0, AWS elimina il segreto IMMEDIATAMENTE al terraform destroy
+  name                    = "${var.project_name}/${var.env}/app"
   recovery_window_in_days = 0
 }
 
@@ -53,4 +66,3 @@ output "db_endpoint" {
 output "secret_name" {
   value = aws_secretsmanager_secret.app.name
 }
-

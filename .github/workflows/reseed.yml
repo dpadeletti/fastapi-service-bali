@@ -1,0 +1,83 @@
+name: Force Reseed DB
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type RESEED to confirm (truncates and reseeds all places)
+        required: true
+        default: ""
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-north-1
+  ECS_CLUSTER: bali-dev-cluster
+  ECS_SERVICE: bali-dev-api
+  CONTAINER_NAME: api
+  DEPLOY_ROLE_ARN: arn:aws:iam::216571348735:role/github-actions-bali-api-deploy
+
+jobs:
+  reseed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guardrail
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "RESEED" ]; then
+            echo "Type RESEED to confirm."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get current task definition and network config
+        run: |
+          TASK_DEF_ARN=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services $ECS_SERVICE \
+            --query "services[0].taskDefinition" --output text)
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
+
+          NETWORK_CONFIG=$(aws ecs describe-services \
+            --cluster $ECS_CLUSTER --services $ECS_SERVICE \
+            --query "services[0].networkConfiguration" --output json | tr -d '\n')
+          echo "NETWORK_CONFIG=$NETWORK_CONFIG" >> $GITHUB_ENV
+
+      - name: Run force reseed
+        run: |
+          echo "Running force reseed on ECS..."
+          TASK_ARN=$(aws ecs run-task \
+            --cluster $ECS_CLUSTER \
+            --task-definition $TASK_DEF_ARN \
+            --launch-type FARGATE \
+            --network-configuration '${{ env.NETWORK_CONFIG }}' \
+            --overrides '{"containerOverrides":[{"name":"api","command":["sh","-c","PYTHONPATH=. python scripts/seed_db.py --force"]}]}' \
+            --count 1 \
+            --query 'tasks[0].taskArn' \
+            --output text)
+          echo "Reseed task ARN: $TASK_ARN"
+          echo "RESEED_TASK_ARN=$TASK_ARN" >> $GITHUB_ENV
+
+      - name: Wait for reseed to complete
+        run: |
+          aws ecs wait tasks-stopped \
+            --cluster $ECS_CLUSTER \
+            --tasks "$RESEED_TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks \
+            --cluster $ECS_CLUSTER \
+            --tasks "$RESEED_TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)
+
+          echo "Reseed exit code: $EXIT_CODE"
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "❌ Reseed failed with exit code $EXIT_CODE"
+            exit 1
+          fi
+          echo "✅ Reseed completed successfully."

@@ -17,6 +17,8 @@ from app.db.seed import seed_places_if_empty  # Usiamo la tua funzione originale
 from app.db.models import place as _place_model  # noqa: F401
 from app.db.models import itinerary as _itinerary_model  # noqa: F401
 
+from app.api import debug
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -59,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(places.router)
     app.include_router(itineraries.router)
+    app.include_router(debug.router)
 
     app.mount("/", StaticFiles(directory="static", html=True), name="static")
     
