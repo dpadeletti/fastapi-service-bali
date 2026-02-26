@@ -27,7 +27,7 @@ def seed_places_if_empty(db: Session, force: bool = False) -> None:
     data_path = project_root / "data" / "places.json"
     raw = json.loads(data_path.read_text(encoding="utf-8"))
 
-    logger.info(f"Seeding {len(raw)} places...")
+    logger.info(f"Seeding {len(raw)} places... (env={ai_service.env}, provider check)")
 
     for item in raw:
         tags_str = ",".join(item.get("tags", []))
@@ -46,8 +46,9 @@ def seed_places_if_empty(db: Session, force: bool = False) -> None:
         if hasattr(PlaceDB, "embedding"):
             description = ai_service.create_place_description(new_place)
             embedding = ai_service.get_embedding(description)
+            non_zero = sum(1 for v in embedding if v != 0.0)
             new_place.embedding = embedding
-            logger.info(f"  ✓ {new_place.name} (embedding generated)")
+            logger.info(f"  ✓ {new_place.name} (non-zero dims: {non_zero}/768)")
         else:
             logger.info(f"  ✓ {new_place.name} (no embedding)")
 
@@ -58,6 +59,15 @@ def seed_places_if_empty(db: Session, force: bool = False) -> None:
 
 
 if __name__ == "__main__":
+    import os
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        stream=sys.stdout,
+    )
+
+    logger.info(f"seed_db.py starting — ENVIRONMENT={os.getenv('ENVIRONMENT')} LLM_PROVIDER={os.getenv('LLM_PROVIDER')}")
+
     from app.db.session import SessionLocal
     force = "--force" in sys.argv
     db = SessionLocal()
