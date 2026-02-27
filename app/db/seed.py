@@ -1,77 +1,162 @@
+"""
+Database seeding script
+"""
 import json
 import logging
+import os
 import sys
 from pathlib import Path
-from sqlalchemy import select, text
-from sqlalchemy.orm import Session
 
-from app.db.models.place import PlaceDB
-from app.services.ai_service import ai_service
+from sqlalchemy import text
 
+from app.db.database import get_db_session
+from app.db.models.place import Place
+from app.services.ai_service import get_embedding
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
 
 
-def seed_places_if_empty(db: Session, force: bool = False) -> None:
-    if not force:
-        exists = db.execute(select(PlaceDB.id).limit(1)).first()
-        if exists:
-            logger.info("Database already seeded, skipping.")
+def load_places_data():
+    """Load places from JSON file"""
+    data_file = Path(__file__).parent.parent.parent / "data" / "places.json"
+    logger.info(f"Loading places from {data_file}")
+    
+    if not data_file.exists():
+        raise FileNotFoundError(f"Data file not found: {data_file}")
+    
+    with open(data_file, "r") as f:
+        data = json.load(f)
+        places = data.get("places", [])
+        logger.info(f"Loaded {len(places)} places from JSON")
+        return places
+
+
+def seed_database(force: bool = False):
+    """
+    Seed the database with places from JSON file
+    
+    Args:
+        force: If True, truncate existing data before seeding
+    """
+    logger.info("=" * 80)
+    logger.info("DATABASE SEEDING STARTED")
+    logger.info(f"Force mode: {force}")
+    logger.info(f"LLM_PROVIDER: {os.getenv('LLM_PROVIDER', 'NOT_SET')}")
+    logger.info(f"AWS_REGION: {os.getenv('AWS_REGION', 'NOT_SET')}")
+    logger.info("=" * 80)
+    
+    db = next(get_db_session())
+    
+    try:
+        # Check if places already exist
+        existing_count = db.query(Place).count()
+        logger.info(f"Existing places in database: {existing_count}")
+        
+        if existing_count > 0 and not force:
+            logger.info("Database already seeded. Use --force to reseed.")
             return
-
-    if force:
-        logger.info("Force mode: truncating places table...")
-        db.execute(text("TRUNCATE TABLE places RESTART IDENTITY CASCADE"))
+        
+        if force and existing_count > 0:
+            logger.warning("FORCE MODE: Truncating places table...")
+            db.execute(text("TRUNCATE TABLE places CASCADE"))
+            db.commit()
+            logger.info("Table truncated successfully")
+        
+        # Load data
+        places_data = load_places_data()
+        
+        # Seed places
+        logger.info(f"Starting to seed {len(places_data)} places...")
+        places_with_embeddings = 0
+        places_without_embeddings = 0
+        
+        for idx, place_data in enumerate(places_data, 1):
+            try:
+                # Create place object
+                place = Place(
+                    name=place_data["name"],
+                    area=place_data["area"],
+                    latitude=place_data["latitude"],
+                    longitude=place_data["longitude"],
+                    description=place_data["description"],
+                    tags=place_data["tags"]
+                )
+                
+                # Generate embedding
+                logger.info(f"[{idx}/{len(places_data)}] Processing: {place.name}")
+                
+                embedding_text = f"{place.name} {place.area} {place.description} {' '.join(place.tags)}"
+                logger.debug(f"  Embedding text length: {len(embedding_text)} chars")
+                
+                try:
+                    embedding = get_embedding(embedding_text)
+                    if embedding:
+                        place.embedding = embedding
+                        places_with_embeddings += 1
+                        logger.info(f"  ✓ Embedding generated: {len(embedding)} dimensions")
+                    else:
+                        places_without_embeddings += 1
+                        logger.warning(f"  ✗ Embedding is None")
+                except Exception as e:
+                    places_without_embeddings += 1
+                    logger.error(f"  ✗ Embedding generation failed: {str(e)}")
+                
+                db.add(place)
+                
+                # Commit every 10 places
+                if idx % 10 == 0:
+                    db.commit()
+                    logger.info(f"  Committed batch at {idx} places")
+                
+            except Exception as e:
+                logger.error(f"Error seeding place {place_data.get('name', 'unknown')}: {str(e)}")
+                db.rollback()
+                raise
+        
+        # Final commit
         db.commit()
-
-    project_root = Path(__file__).resolve().parents[2]
-    data_path = project_root / "data" / "places.json"
-    raw = json.loads(data_path.read_text(encoding="utf-8"))
-
-    logger.info(f"Seeding {len(raw)} places... (env={ai_service.env}, provider check)")
-
-    for item in raw:
-        tags_str = ",".join(item.get("tags", []))
-
-        new_place = PlaceDB(
-            id=item["id"],
-            name=item["name"],
-            area=item["area"],
-            type=item["type"],
-            duration_hours=item["duration_hours"],
-            best_time=item["best_time"],
-            price_level=item["price_level"],
-            tags=tags_str,
-        )
-
-        if hasattr(PlaceDB, "embedding"):
-            description = ai_service.create_place_description(new_place)
-            embedding = ai_service.get_embedding(description)
-            non_zero = sum(1 for v in embedding if v != 0.0)
-            new_place.embedding = embedding
-            logger.info(f"  ✓ {new_place.name} (non-zero dims: {non_zero}/768)")
-        else:
-            logger.info(f"  ✓ {new_place.name} (no embedding)")
-
-        db.add(new_place)
-
-    db.commit()
-    logger.info("Seeding completed successfully.")
+        
+        # Summary
+        logger.info("=" * 80)
+        logger.info("SEEDING COMPLETE")
+        logger.info(f"Total places seeded: {len(places_data)}")
+        logger.info(f"Places with embeddings: {places_with_embeddings}")
+        logger.info(f"Places without embeddings: {places_without_embeddings}")
+        logger.info(f"Success rate: {places_with_embeddings}/{len(places_data)} ({100*places_with_embeddings/len(places_data):.1f}%)")
+        logger.info("=" * 80)
+        
+    except Exception as e:
+        logger.error(f"Seeding failed: {str(e)}")
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
-    import os
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-        stream=sys.stdout,
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Seed the database with places")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force reseed by truncating existing data"
     )
-
-    logger.info(f"seed_db.py starting — ENVIRONMENT={os.getenv('ENVIRONMENT')} LLM_PROVIDER={os.getenv('LLM_PROVIDER')}")
-
-    from app.db.session import SessionLocal
-    force = "--force" in sys.argv
-    db = SessionLocal()
+    
+    args = parser.parse_args()
+    
     try:
-        seed_places_if_empty(db, force=force)
-    finally:
-        db.close()
+        seed_database(force=args.force)
+    except Exception as e:
+        logger.error(f"Fatal error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        sys.exit(1)
